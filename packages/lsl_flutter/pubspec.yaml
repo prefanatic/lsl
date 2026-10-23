@@ -1,0 +1,23 @@
+name: lsl_flutter
+description: Lab Streaming Layer for Flutter through Dart native build hooks.
+version: 0.1.0-dev.1
+publish_to: none
+repository: https://github.com/prefanatic/lsl/tree/main/packages/lsl_flutter
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
+dependencies:
+  flutter:
+    sdk: flutter
+  lsl: ^0.1.0-dev.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0

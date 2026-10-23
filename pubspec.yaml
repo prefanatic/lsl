@@ -1,0 +1,8 @@
+name: lsl_workspace
+publish_to: none
+environment:
+  sdk: ^3.13.0
+workspace:
+  - packages/lsl
+  - packages/lsl_flutter
+  - packages/lsl_flutter/example

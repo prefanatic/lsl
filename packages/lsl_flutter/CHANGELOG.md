@@ -1,0 +1,7 @@
+## 0.1.0-dev.1
+
+Initial development release.
+
+- Export the LSL Dart API for Flutter applications.
+- Build and bundle liblsl through the transitive Dart hook.
+- Include an example with platform network permissions and native build checks.
