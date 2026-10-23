@@ -24,6 +24,7 @@ void main() {
   final outlet = Outlet(streamInfo: info);
   info.destroy();
   try {
+    if (!outlet.waitForConsumers(timeout: 5)) return;
     outlet.pushSample([1.25, 2.5], timestamp: localClock());
     outlet.pushChunk([1, 2, 3, 4]);
   } finally {
@@ -41,6 +42,10 @@ Integer formats require integers within the native range. The API preserves int6
 For a one-off sample, call `waitForConsumers` before the send and check its result.
 A send without a connected consumer does not guarantee delivery.
 LSL uses a monotonic local clock. Its timestamps are not UTC or Unix timestamps.
+Zero selects the local clock. `-1` selects LSL's deduced timestamp from the preceding sample and nominal rate.
+Other finite timestamps pass through unchanged, including negative values.
+For regular streams, a chunk assigns earlier timestamps from its nominal rate.
+For irregular streams, every sample in a chunk receives the supplied timestamp.
 
 ## Receive samples
 
@@ -64,8 +69,15 @@ Future<void> main() async {
 
 Discovery uses a worker isolate. Its results retain native connection details.
 `resolveStreams` also supports a property/value filter or an XPath predicate.
+An unfiltered search waits for `timeout` seconds. A filtered search can return after `minimum` matches arrive.
+`capacity` limits the number of results. A timeout can return fewer matches, including an empty list.
 The caller owns every returned `StreamInfo`.
+Resolver results contain short metadata. Use `Inlet.fullInfo` for the full remote `desc` element.
+Use a stable, unique `sourceId` for a source that must recover after a restart.
+`recover: true` permits native reconnection. An empty source ID prevents that recovery.
 `Inlet.open` creates a separate worker inlet and uses bounded native waits.
+Its timeout limits the initial connection. The single-subscription stream can then wait indefinitely for samples.
+The stream emits a native failure as an error, then closes.
 Subscription cancellation waits for worker cleanup.
 Pause stops pulls from the native queue. The configured native buffer limits retained samples.
 After cancellation, a new subscription uses a new native connection.
@@ -77,6 +89,31 @@ A nonzero timeout can block the calling isolate.
 A pull returns null when no sample arrives. Native failures throw `LslException` subtypes.
 Call `setPostprocessing` with LSL processing flags before stream reception.
 Use `timeCorrection` with raw timestamps when the application needs manual clock correction.
+Add the correction to the source timestamp to map it into the receiver's local LSL clock domain.
+Automatic clock synchronization already applies that correction. Do not apply it a second time.
+
+```dart
+import 'package:lsl/native.dart' show lsl_processing_options_t;
+
+// Configure the inlet before reception.
+inlet.setPostprocessing(
+  lsl_processing_options_t.proc_clocksync |
+      lsl_processing_options_t.proc_dejitter,
+);
+```
+
+Processing replaces the original timestamps. `setPostprocessing(0)` disables processing.
+`closeStream` drops queued samples and permits a later synchronous or worker connection.
+The wrapper replaces the native handle to avoid liblsl 1.17.7's
+[close/reopen defect](https://github.com/sccn/liblsl/issues/180).
+
+## Buffer configuration
+
+The `maxBuffered` constructor parameter uses seconds when the nominal rate is positive.
+For irregular streams, each unit represents 100 samples. The default is 360 units.
+The `chunkSize` and `maxChunkSize` constructor parameters use samples, not channel values.
+Zero permits the native default. A nonzero outlet chunk size can delay a partial chunk until more samples arrive.
+Use the raw C API for transport flags, per-sample chunk timestamps, and chunk reads.
 
 ## String streams
 
@@ -96,4 +133,7 @@ Use `copy` when a description must retain its native connection details.
 liblsl 1.17.7 can omit resolved addresses from exported XML.
 The raw C API requires explicit pointer, buffer, and string cleanup.
 
-See the repository README for offline builds, toolchains, and platform requirements.
+The package's [LICENSE](https://github.com/prefanatic/lsl/blob/main/packages/lsl/LICENSE) includes the native dependency notices.
+Preserve those notices when you distribute an application with liblsl.
+See the [repository README](https://github.com/prefanatic/lsl) for offline builds and development commands.
+See [platform configuration](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md) for network permissions and support limits.

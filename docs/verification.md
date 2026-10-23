@@ -1,57 +1,60 @@
 # Verification
 
 Verification date: 2026-10-23.
-Host: macOS arm64, Flutter 3.47.5, Dart 3.13.4, Xcode 27.1.
+Local host: macOS arm64, Flutter 3.47.5, Dart 3.13.4, Xcode 27.1.
 
-## Passed checks
+## Automated checks
 
-- Strict Dart analysis: `dart analyze --fatal-infos`.
-- Format validation for all Dart source files.
-- The Flutter runner verified all 31 native transport and archive tests with `--no-pub`.
-- The discovery test passed in an isolated rerun after a network interface error in the full suite.
-- Handwritten library line coverage reached 93.4% (495 of 530 lines) through the Flutter runner.
-- Flutter package and example widget tests on macOS.
-- Generation of C bindings produced identical output on a second run.
-- The Dart CLI bundle built and received a UTF-8 marker through a worker inlet in AOT mode.
-- The macOS release example built a universal arm64/x64 liblsl framework.
-- The macOS debug example launched and completed a hot reload.
-- The Android debug and release APKs built with armv7, arm64, and x64 liblsl libraries.
-- The iOS simulator example built with its bundled liblsl framework.
-- The unsigned iOS release example built an arm64 liblsl framework.
-- The repository diff passed the Git whitespace check.
+The [CI workflow](https://github.com/prefanatic/lsl/actions/workflows/ci.yaml) records results for each commit.
+The [hosted baseline run](https://github.com/prefanatic/lsl/actions/runs/40012923831) passed all five jobs.
+It verified native tests, coverage, Flutter tests, desktop builds, bundled CLI execution, mobile builds, and binding generation.
+Check the latest commit's result before a release.
+API documentation checks now reject broken links and unresolved references.
 
-The tests cover all seven channel formats, numeric chunks, timestamps, metadata, discovery, and clock correction.
-They also cover native timeout and stream-loss errors, cancellation, pause, restart, and repeated destruction.
-Archive tests cover SHA-256 checks, offline sources, cache reuse, HTTP errors, and unsafe extraction paths.
-The CI coverage check requires 90% line coverage for handwritten library code.
-It excludes generated C bindings and export-only files.
+| Target | Runtime tests | Build verification |
+| --- | --- | --- |
+| Linux x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
+| macOS arm64 | Native tests, Flutter tests, bundled AOT CLI | Universal arm64/x64 release example |
+| Windows x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
+| Android arm, arm64, x64 | Physical-device network tests remain pending | Release APK |
+| iOS arm64 simulator | Network behavior remains unverified | Simulator example |
+| iOS arm64 device | Physical-device network tests remain pending | Unsigned release example |
 
-## Scope of local verification
+## Final local review
 
-- Linux and Windows tests and builds run on the CI hosts.
-- See the [CI runs](https://github.com/prefanatic/lsl/actions/workflows/ci.yaml) for hosted verification results.
-- Physical Android and iOS tests must verify network permissions, Wi-Fi discovery, and sample transfer.
-- Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
-- Linux arm64, Windows arm64, and iOS x64 simulator builds have no local verification.
-- No live health backend or wearable hardware participated in these checks.
+- Strict Dart analysis and format validation passed.
+- The native and tool suites contain 44 tests. The native suites passed through the Flutter runner with `--no-pub`.
+- Handwritten library coverage reached 95.6% (521 of 545 lines) through the Flutter runner.
+- The Flutter package test and example widget test passed.
+- Both API documentation builds passed with zero warnings and zero errors.
+- External Dart and Flutter consumers resolved path dependencies outside the workspace and loaded liblsl.
+- The external Dart consumer received a marker through a worker inlet.
+- Both external consumers used cached Pub dependencies and the offline source-archive override.
+- The macOS example launched and completed a hot reload. Automatic foreground activation failed.
+- The Git whitespace check passed.
 
-The upstream native code emits compiler warnings on Android and teardown messages during some transport tests.
-These messages did not cause the listed checks to fail.
-Flutter could not bring the macOS example to the foreground automatically.
-The example process loaded liblsl and completed the hot reload.
+Tests cover all seven formats, numeric chunks, timestamp rules, metadata ownership, discovery, and clock correction.
+They cover native timeout and stream-loss errors, error order, pause/resume, cancellation, and repeated destruction.
+They also cover synchronous close/reopen, source recovery, and cancellation during recovery.
+Validation tests reject invalid dimensions, native options, text, XML rates, and search filters.
+Archive tests cover hashes, offline sources, cache reuse, HTTP failures, and unsafe paths.
+Coverage-tool tests cover relative paths, Windows paths, missing files, unrelated files, and threshold failures.
 
-## Tool limits
+The coverage gate requires 90% line coverage for handwritten library code.
+It excludes generated C bindings and export-only libraries. It rejects missing source files.
 
-The offline source-preparation tests passed without network access.
-An end-to-end offline test attempt stopped when the SDK requested Pub advisory data through a blocked proxy.
-An offline Pub resolution did not prevent that later request.
-The native source override does not control the SDK's Pub requests.
+## Remaining scope
 
-The direct `dart test --compiler exe` check failed because the runner supplied no native asset map.
-The supported `dart build cli` bundle passed the AOT discovery and worker-inlet check.
-CI runs the normal VM tests and the bundled AOT example.
+Physical Android and iOS tests must verify permissions, Wi-Fi discovery, and sample transfer on the intended networks.
+Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
+Android SDK 37 permission behavior requires a matching device or emulator and a consuming application that targets SDK 37.
+Linux arm64, Windows arm64, and iOS x64 simulator targets lack build or runtime verification.
+CI executes macOS arm64. The universal macOS build also compiles the x64 library.
+No live health backend or wearable hardware participates in these checks.
 
-Pub network requests stalled during this API check.
-Dependency resolution passed with `flutter pub get --offline --enforce-lockfile`.
-The normal `dart test` run did not complete.
-`flutter test --no-pub` ran the same `package:test` suites with the cached dependencies.
+The native code can emit compiler warnings and teardown messages during transport tests.
+Those messages do not imply a passing test; use the runner's exit status and assertions.
+The supported AOT path is `dart build cli`, which bundles the native asset.
+A direct `dart test --compiler exe` run on this SDK did not supply a native asset map.
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for reproducible commands.

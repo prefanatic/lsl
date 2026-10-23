@@ -10,7 +10,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
-        val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
         multicastLock = wifi.createMulticastLock("lsl-example").apply { acquire() }
     }
 

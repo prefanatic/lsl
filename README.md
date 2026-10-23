@@ -52,8 +52,9 @@ Later builds reuse the verified archives in the hook cache.
 
 The hook rejects other targets. The web cannot use `dart:ffi` or the LSL socket protocol.
 See [platform configuration](docs/platforms.md) for network permissions and device limits.
-CI defines desktop tests and example builds for all five operating systems.
-A CI definition does not prove that a target passed. See [verification](docs/verification.md) for local results.
+CI runs native tests and bundled CLI checks on Linux, macOS, and Windows.
+It also builds the Flutter example for all five operating systems.
+See [verification](docs/verification.md) for recorded results and unverified targets.
 
 ## Development
 
@@ -62,7 +63,7 @@ Run these commands from the repository root:
 ```sh
 flutter pub get --enforce-lockfile
 dart analyze --fatal-infos
-dart format --output=none --set-exit-if-changed packages
+dart format --output=none --set-exit-if-changed packages tool test
 ```
 
 Run package tests from their package directories:
@@ -86,6 +87,7 @@ flutter run -d macos
 Regenerate the complete C API with `dart run packages/lsl/tool/ffigen.dart` from the repository root.
 FFIgen requires libclang. The generator uses the pinned headers in `packages/lsl/third_party/liblsl`.
 Keep those headers, the archive hashes, the source list, and the native version in agreement.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coverage, API docs, and review checks.
 
 ## Offline builds
 
@@ -115,3 +117,9 @@ Destroy each owned `StreamInfo`, including resolver results and `Outlet.streamIn
 Await `Inlet.destroy()` after use.
 Cancel a sample subscription before use of synchronous inlet methods.
 Native finalizers provide fallback cleanup. Explicit destruction gives predictable resource lifetime.
+
+## Licenses
+
+The Dart code uses the MIT license in [LICENSE](LICENSE).
+The [lsl package license](packages/lsl/LICENSE) also contains the native dependency notices.
+See [native dependencies](docs/native-dependencies.md) for their source versions and licenses.

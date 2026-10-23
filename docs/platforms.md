@@ -4,7 +4,9 @@ The build hook packages native code. The application controls network access and
 LSL uses UDP discovery, TCP sample transfer, and UDP clock synchronization.
 Firewalls must permit the relevant local network traffic.
 The default discovery port is 16571. Stream ports depend on the LSL configuration.
+The default port range starts at 16572 and contains 32 ports.
 See the [LSL network overview](https://labstreaminglayer.readthedocs.io/projects/liblsl/internals/overview.html).
+LSL does not encrypt samples or authenticate peers. Use a network with appropriate access controls.
 
 ## Android
 
@@ -22,6 +24,13 @@ Release the lock when that work stops.
 The example activity shows this lifecycle for a foreground application.
 The package does not hold a global lock or create an Android background service.
 See [Android's MulticastLock documentation](https://developer.android.com/reference/android/net/wifi/WifiManager.MulticastLock).
+
+Apps that target Android 17 (SDK 37) or later must also declare `android.permission.ACCESS_LOCAL_NETWORK`.
+Request that permission at runtime before LSL creates an inlet or outlet, or starts discovery.
+Handle permission denial and revocation in the application.
+Apps that target SDK 36 or earlier use `INTERNET` for this access.
+The example follows Flutter 3.47's SDK 36 target and does not request the newer permission.
+See [Android's local network permission guidance](https://developer.android.com/privacy-and-security/local-network-permission).
 
 The hook builds armv7, arm64, and x64 targets with the NDK compiler.
 It links the C++ runtime statically and requests 16 KiB ELF page alignment through `native_toolchain_c`.
@@ -68,5 +77,9 @@ Linux uses the target C++ runtime and pthreads.
 
 The hook validates operating system and architecture combinations before a download.
 Cross-compilation still requires the host toolchain that Dart or Flutter supports.
-The CI workflow tests desktop hosts and builds the example for desktop, Android, and the iOS simulator.
+The CI workflow tests desktop hosts and builds the example for desktop, Android, iOS simulator, and unsigned iOS device targets.
+The example uses Android API 24, iOS 15, and macOS 12 as its deployment minimums.
+The consuming application must also meet its Flutter SDK's platform minimums.
+Linux arm64, Windows arm64, and iOS x64 simulator targets lack execution or build verification.
+The macOS release build contains both arm64 and x64 native libraries; CI executes only arm64.
 Run physical-device tests before a release that claims validated mobile discovery.
