@@ -5,6 +5,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:lsl/src/third_party/liblsl.g.dart' as native;
 
+/// A native LSL failure. The fields identify its operation, code, and explanation.
 class LslException implements Exception {
   const LslException(this.code, this.operation, this.message);
   final int code;
@@ -15,11 +16,13 @@ class LslException implements Exception {
   String toString() => 'LslException($code): $operation: $message';
 }
 
+/// A native operation did not complete within its timeout.
 class LslTimeoutException extends LslException {
   const LslTimeoutException(String operation, String message)
     : super(-1, operation, message);
 }
 
+/// A source disappeared and the inlet cannot recover its connection.
 class LslLostException extends LslException {
   const LslLostException(String operation, String message)
     : super(-2, operation, message);

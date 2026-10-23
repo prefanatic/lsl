@@ -74,7 +74,10 @@ class StreamInfo implements Finalizable {
         ),
       ),
     );
-    if (info.channelCount <= 0 || info.uid.isEmpty) {
+    if (info.channelCount <= 0 ||
+        info.uid.isEmpty ||
+        !info.nominalSamplingRate.isFinite ||
+        info.nominalSamplingRate < 0) {
       info.destroy();
       throw const FormatException(
         'The XML must describe a published LSL stream.',
@@ -92,6 +95,7 @@ class StreamInfo implements Finalizable {
   final Pointer<native.lsl_streaminfo_struct_> _pointer;
   bool _destroyed = false;
 
+  /// A borrowed native handle. Do not free it or use it after [destroy].
   Pointer<native.lsl_streaminfo_struct_> get pointer {
     if (_destroyed) throw StateError('StreamInfo has been destroyed.');
     return _pointer;
@@ -138,9 +142,11 @@ class StreamInfo implements Finalizable {
     });
   }
 
+  /// Creates a separate owned copy, including native connection details.
   StreamInfo copy() =>
       StreamInfo.fromPointer(native.lsl_copy_streaminfo(pointer));
 
+  /// Releases the description. Repeated calls are safe.
   void destroy() {
     if (_destroyed) return;
     _finalizer.detach(this);

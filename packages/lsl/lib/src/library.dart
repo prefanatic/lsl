@@ -10,15 +10,28 @@ import 'package:lsl/src/third_party/liblsl.g.dart' as native;
 
 /// A numeric sample. Integer formats retain their integer precision.
 typedef LslSample = ({double timestamp, List<num> samples});
+
+/// A UTF-8 sample with a timestamp in the source's LSL clock domain.
 typedef LslStringSample = ({double timestamp, List<String> samples});
 
 String _version(int value) => '${value ~/ 100}.${value % 100}';
+
+/// The supported LSL wire protocol, as a major.minor version.
 String get protocolVersion => _version(native.lsl_protocol_version());
+
+/// The native API version, as a major.minor version. See [libraryInfo] for the patch.
 String get libraryVersion => _version(native.lsl_library_version());
+
+/// The pinned native source versions and build identification.
 String get libraryInfo => native.lsl_library_info().cast<Utf8>().toDartString();
+
+/// The monotonic LSL clock in seconds. This clock has no UTC epoch.
 double localClock() => native.lsl_local_clock();
 
 /// Resolves streams in a worker isolate. The caller owns each result.
+/// [timeout] uses seconds. An unfiltered search waits for that duration.
+/// A filtered search returns when [minimum] matches arrive, or the timeout expires.
+/// [capacity] limits the result count. Filtered searches can return fewer than [minimum].
 Future<List<StreamInfo>> resolveStreams({
   String? property,
   String? value,
@@ -37,6 +50,9 @@ Future<List<StreamInfo>> resolveStreams({
   if ((property == null) != (value == null) ||
       (property != null && predicate != null)) {
     throw ArgumentError('Supply a property and value, or a predicate.');
+  }
+  if (property == null && predicate == null && minimum != 1) {
+    throw ArgumentError.value(minimum, 'minimum', 'Requires a search filter.');
   }
   if (property != null) checkText(property, 'property');
   if (value != null) checkText(value, 'value');

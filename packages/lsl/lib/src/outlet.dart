@@ -10,11 +10,16 @@ import 'package:lsl/src/third_party/liblsl.g.dart' as native;
 
 /// A native LSL outlet. Call [destroy] after use.
 class Outlet implements Finalizable {
+  /// Copies [streamInfo], which the caller can then destroy.
+  /// [chunkSize] uses samples; zero permits immediate sends.
+  /// [maxBuffered] uses seconds for regular streams, or 100-sample units otherwise.
   factory Outlet({
     required StreamInfo streamInfo,
     int chunkSize = 0,
     int maxBuffered = 360,
   }) {
+    final count = streamInfo.channelCount;
+    final format = streamInfo.channelFormat;
     if (chunkSize < 0 || chunkSize > 0x7fffffff) {
       throw RangeError.range(chunkSize, 0, 0x7fffffff, 'chunkSize');
     }
@@ -26,11 +31,7 @@ class Outlet implements Finalizable {
       chunkSize,
       maxBuffered,
     );
-    return Outlet._(
-      requirePointer(pointer, 'create outlet'),
-      streamInfo.channelCount,
-      streamInfo.channelFormat,
-    );
+    return Outlet._(requirePointer(pointer, 'create outlet'), count, format);
   }
 
   Outlet._(this._pointer, this.channelCount, this.channelFormat) {
@@ -44,7 +45,11 @@ class Outlet implements Finalizable {
         .cast(),
   );
   final Pointer<native.lsl_outlet_struct_> _pointer;
+
+  /// The number of values in each sample.
   final int channelCount;
+
+  /// The native format of each channel.
   final ChannelFormat channelFormat;
   bool _destroyed = false;
 
@@ -56,6 +61,8 @@ class Outlet implements Finalizable {
   /// Returns a new owned description with this outlet's connection details.
   StreamInfo get streamInfo =>
       StreamInfo.fromPointer(native.lsl_get_info(_handle));
+
+  /// Whether at least one inlet has completed its connection.
   bool get haveConsumers => native.lsl_have_consumers(_handle) != 0;
 
   /// This synchronous call can block for [timeout] seconds.
@@ -143,6 +150,7 @@ class Outlet implements Finalizable {
     });
   }
 
+  /// Sends one UTF-8 string per channel. Zero uses the local LSL clock.
   void pushStrings(List<String> sample, {double timestamp = 0}) {
     _handle;
     if (channelFormat != ChannelFormat.string) {
@@ -167,9 +175,11 @@ class Outlet implements Finalizable {
     });
   }
 
+  /// Sends one marker through a single-channel string outlet.
   void pushString(String sample, {double timestamp = 0}) =>
       pushStrings([sample], timestamp: timestamp);
 
+  /// Releases the native outlet. Repeated calls are safe.
   void destroy() {
     if (_destroyed) return;
     _finalizer.detach(this);
@@ -179,7 +189,7 @@ class Outlet implements Finalizable {
 }
 
 void _checkTimestamp(double timestamp) {
-  if (!timestamp.isFinite || timestamp < -1) {
+  if (!timestamp.isFinite) {
     throw ArgumentError.value(timestamp, 'timestamp');
   }
 }

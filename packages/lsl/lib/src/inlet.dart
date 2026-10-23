@@ -13,6 +13,10 @@ import 'package:lsl/src/third_party/liblsl.g.dart' as native;
 
 /// A native inlet. Await [destroy] after use.
 class Inlet implements Finalizable {
+  /// Copies [streamInfo], which the caller can then destroy.
+  /// [maxBuffered] uses seconds for regular streams, or 100-sample units otherwise.
+  /// [maxChunkSize] uses samples; zero accepts the outlet's chunk size.
+  /// [recover] permits reconnection when the source has a stable source ID.
   factory Inlet({
     required StreamInfo streamInfo,
     int maxBuffered = 360,
@@ -20,27 +24,28 @@ class Inlet implements Finalizable {
     bool recover = true,
   }) {
     final count = streamInfo.channelCount;
+    final format = streamInfo.channelFormat;
     if (maxBuffered < 1 || maxBuffered > 0x7fffffff) {
       throw RangeError.range(maxBuffered, 1, 0x7fffffff, 'maxBuffered');
     }
     if (maxChunkSize < 0 || maxChunkSize > 0x7fffffff) {
       throw RangeError.range(maxChunkSize, 0, 0x7fffffff, 'maxChunkSize');
     }
-    final pointer = native.lsl_create_inlet(
-      streamInfo.pointer,
-      maxBuffered,
-      maxChunkSize,
-      recover ? 1 : 0,
-    );
-    return Inlet._(
-      requirePointer(pointer, 'create inlet'),
-      count,
-      streamInfo.channelFormat,
-      streamInfo.copy(),
-      maxBuffered,
-      maxChunkSize,
-      recover,
-    );
+    final description = streamInfo.copy();
+    try {
+      return Inlet._(
+        _createHandle(description, maxBuffered, maxChunkSize, recover, 0),
+        count,
+        format,
+        description,
+        maxBuffered,
+        maxChunkSize,
+        recover,
+      );
+    } catch (_) {
+      description.destroy();
+      rethrow;
+    }
   }
 
   Inlet._(
@@ -61,8 +66,12 @@ class Inlet implements Finalizable {
         >(native.lsl_destroy_inlet)
         .cast(),
   );
-  final Pointer<native.lsl_inlet_struct_> _pointer;
+  Pointer<native.lsl_inlet_struct_> _pointer;
+
+  /// The number of values in each sample.
   final int channelCount;
+
+  /// The native format of each channel.
   final ChannelFormat channelFormat;
   final StreamInfo _description;
   final int _maxBuffered;
@@ -98,23 +107,39 @@ class Inlet implements Finalizable {
     _opened = true;
   }
 
+  /// Disconnects and drops queued samples. A later call can open a new connection.
+  /// This synchronous call replaces the handle to avoid liblsl 1.17.7's reopen defect.
   void closeStream() {
     _checkSynchronous();
-    native.lsl_close_stream(_handle);
+    final replacement = _createHandle(
+      _description,
+      _maxBuffered,
+      _maxChunkSize,
+      _recover,
+      _processing,
+    );
+    _finalizer.detach(this);
+    native.lsl_destroy_inlet(_pointer);
+    _pointer = replacement;
+    _finalizer.attach(this, _pointer.cast(), detach: this);
     _opened = false;
   }
 
+  /// The number of samples currently in the native queue.
   int get samplesAvailable {
     _checkSynchronous();
     return native.lsl_samples_available(_handle);
   }
 
+  /// Drops queued samples and returns their count.
   int flush() {
     _checkSynchronous();
     return native.lsl_inlet_flush(_handle);
   }
 
   /// Configures clock synchronization, jitter removal, and monotonic timestamps.
+  /// Combine the `lsl_processing_options_t` flags from `package:lsl/native.dart`.
+  /// Zero disables all processing. Processing replaces the original timestamps.
   void setPostprocessing(int flags) {
     _checkSynchronous();
     if (flags < 0 || flags > 15) throw RangeError.range(flags, 0, 15, 'flags');
@@ -176,6 +201,8 @@ class Inlet implements Finalizable {
     });
   }
 
+  /// Returns null when no string sample arrives within [timeout] seconds.
+  /// This synchronous call can block the calling isolate.
   LslStringSample? pullStrings({double timeout = 0}) {
     _checkSynchronous();
     checkTimeout(timeout);
@@ -212,6 +239,8 @@ class Inlet implements Finalizable {
   }
 
   /// Receives numeric samples in an isolate with bounded native waits.
+  /// [timeout] uses seconds and limits the initial connection, not sample intervals.
+  /// The single-subscription stream emits failures as errors, then closes.
   /// Cancel the subscription before use of the synchronous inlet methods.
   Stream<LslSample> open({double timeout = 5}) {
     if (channelFormat == ChannelFormat.string) {
@@ -220,6 +249,8 @@ class Inlet implements Finalizable {
     return _startSession(timeout, false).map((value) => value as LslSample);
   }
 
+  /// Receives UTF-8 samples in a worker. [timeout] limits the initial connection.
+  /// The stream emits native failures as errors, then closes.
   Stream<LslStringSample> openStrings({double timeout = 5}) {
     if (channelFormat != ChannelFormat.string) {
       throw StateError('The inlet does not use string channels.');
@@ -269,6 +300,34 @@ class Inlet implements Finalizable {
   }
 }
 
+Pointer<native.lsl_inlet_struct_> _createHandle(
+  StreamInfo description,
+  int maxBuffered,
+  int maxChunkSize,
+  bool recover,
+  int processing,
+) {
+  final pointer = requirePointer(
+    native.lsl_create_inlet(
+      description.pointer,
+      maxBuffered,
+      maxChunkSize,
+      recover ? 1 : 0,
+    ),
+    'create inlet',
+  );
+  try {
+    checkError(
+      native.lsl_set_postprocessing(pointer, processing),
+      'set postprocessing',
+    );
+    return pointer;
+  } catch (_) {
+    native.lsl_destroy_inlet(pointer);
+    rethrow;
+  }
+}
+
 class _SamplerArgs {
   const _SamplerArgs(
     this.infoAddress,
@@ -309,8 +368,6 @@ class _SamplerSession {
   late final StreamController<Object> _controller;
   final _done = Completer<void>();
   ReceivePort? _messages;
-  ReceivePort? _exit;
-  ReceivePort? _errors;
   SendPort? _commands;
   bool _started = false;
   bool _stopping = false;
@@ -323,10 +380,11 @@ class _SamplerSession {
     if (_stopping) return;
     _started = true;
     final messages = _messages = ReceivePort();
-    final exit = _exit = ReceivePort();
-    final errors = _errors = ReceivePort();
     messages.listen((Object? message) {
-      if (message is SendPort) {
+      // Samples, failures, and exit share one port to preserve send order.
+      if (message == null) {
+        _finish();
+      } else if (message is SendPort) {
         _commands = message;
         if (_stopping) {
           message.send('stop');
@@ -335,37 +393,37 @@ class _SamplerSession {
         }
       } else if (!_stopping && message is (LslException, String)) {
         _controller.addError(message.$1, StackTrace.fromString(message.$2));
-      } else if (!_stopping && message != null) {
+      } else if (!_stopping && message is List) {
+        _controller.addError(StateError('Sample worker failed: $message'));
+      } else if (!_stopping) {
         _controller.add(message);
       }
     });
-    errors.listen((Object? error) {
-      if (!_stopping) {
-        _controller.addError(StateError('Sample worker failed: $error'));
-      }
-    });
-    exit.listen((Object? _) => _finish());
-    final copy = native.lsl_copy_streaminfo(description.pointer);
-    final workerArgs = _SamplerArgs(
-      copy.address,
-      args.maxBuffered,
-      args.maxChunkSize,
-      args.recover,
-      args.timeout,
-      args.strings,
-      args.processing,
-    );
+    Pointer<native.lsl_streaminfo_struct_>? copy;
     try {
+      copy = requirePointer(
+        native.lsl_copy_streaminfo(description.pointer),
+        'copy worker description',
+      );
+      final workerArgs = _SamplerArgs(
+        copy.address,
+        args.maxBuffered,
+        args.maxChunkSize,
+        args.recover,
+        args.timeout,
+        args.strings,
+        args.processing,
+      );
       await Isolate.spawn(
         _sampleWorkerEntry,
         (workerArgs, messages.sendPort),
-        onExit: exit.sendPort,
-        onError: errors.sendPort,
+        onExit: messages.sendPort,
+        onError: messages.sendPort,
         errorsAreFatal: true,
         debugName: 'LSL inlet',
       );
     } catch (error, stack) {
-      native.lsl_destroy_streaminfo(copy);
+      if (copy != null) native.lsl_destroy_streaminfo(copy);
       if (!_stopping) _controller.addError(error, stack);
       _finish();
     }
@@ -386,8 +444,6 @@ class _SamplerSession {
   void _finish() {
     if (_done.isCompleted) return;
     _messages?.close();
-    _exit?.close();
-    _errors?.close();
     // Do not await close: a paused subscription can defer its done event.
     unawaited(_controller.close());
     _done.complete();

@@ -139,6 +139,74 @@ void main() {
     expect(() => outlet.pushSample([0, 1]), throwsStateError);
   });
 
+  test(
+    'a closed synchronous inlet can receive through a new connection',
+    () async {
+      final (outlet, inlet) = await pair(ChannelFormat.float32);
+      addTearDown(() async {
+        await inlet.destroy();
+        outlet.destroy();
+      });
+      inlet.setPostprocessing(8);
+      for (var round = 0; round < 2; round++) {
+        inlet.openStream(timeout: 2);
+        expect(outlet.waitForConsumers(timeout: 2), isTrue);
+        LslSample? sample;
+        for (var attempt = 0; attempt < 20 && sample == null; attempt++) {
+          outlet.pushSample([round, 2], timestamp: 40 + round.toDouble());
+          sample = inlet.pullSample(timeout: 0.05);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(sample?.samples, [round, 2]);
+        inlet.closeStream();
+        expect(inlet.samplesAvailable, 0);
+      }
+      final received = inlet.open().first;
+      final publisher = Timer.periodic(const Duration(milliseconds: 20), (_) {
+        outlet.pushSample([3, 4]);
+      });
+      try {
+        expect((await received.timeout(const Duration(seconds: 5))).samples, [
+          3,
+          4,
+        ]);
+      } finally {
+        publisher.cancel();
+      }
+    },
+  );
+
+  test(
+    'finite clock values and deduced timestamps retain LSL semantics',
+    () async {
+      final (outlet, inlet) = await pair(ChannelFormat.double64, rate: 100);
+      addTearDown(() async {
+        await inlet.destroy();
+        outlet.destroy();
+      });
+      inlet.openStream(timeout: 2);
+      expect(outlet.waitForConsumers(timeout: 2), isTrue);
+      outlet.pushSample([1, 2], timestamp: -2.5);
+      expect(inlet.pullSample(timeout: 2)!.timestamp, -2.5);
+      outlet.pushSample([3, 4], timestamp: -1);
+      expect(inlet.pullSample(timeout: 2)!.timestamp, closeTo(-2.49, 1e-8));
+      for (final timestamp in [
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        expect(
+          () => outlet.pushSample([1, 2], timestamp: timestamp),
+          throwsArgumentError,
+        );
+        expect(
+          () => outlet.pushChunk([1, 2], timestamp: timestamp),
+          throwsArgumentError,
+        );
+      }
+    },
+  );
+
   test('numeric worker receives copies and stops on cancellation', () async {
     final (outlet, inlet) = await pair(ChannelFormat.float32);
     addTearDown(() async {
@@ -177,6 +245,65 @@ void main() {
       'α',
       'β',
     ]);
+  });
+
+  test('a worker delivers a stream-loss error before its done event', () async {
+    final (outlet, inlet) = await pair(ChannelFormat.float32);
+    addTearDown(() async {
+      await inlet.destroy();
+      outlet.destroy();
+    });
+    final events = <Object>[];
+    final received = Completer<void>();
+    final done = Completer<void>();
+    Object? restartError;
+    inlet.open().listen(
+      (sample) {
+        events.add(sample);
+        if (!received.isCompleted) received.complete();
+      },
+      onError: (Object error) => events.add(error),
+      onDone: () {
+        events.add('done');
+        try {
+          inlet.open();
+        } catch (error) {
+          restartError = error;
+        }
+        done.complete();
+      },
+    );
+    await waitUntil(() => outlet.haveConsumers);
+    outlet.pushSample([1, 2]);
+    await received.future.timeout(const Duration(seconds: 5));
+    outlet.destroy();
+    await done.future.timeout(const Duration(seconds: 5));
+    expect(events, [isA<LslSample>(), isA<LslLostException>(), 'done']);
+    expect(restartError, isNull);
+  });
+
+  test('a paused sample subscription resumes without a new inlet', () async {
+    final (outlet, inlet) = await pair(ChannelFormat.float32);
+    addTearDown(() async {
+      await inlet.destroy();
+      outlet.destroy();
+    });
+    final received = <LslSample>[];
+    final subscription = inlet.open().listen(received.add);
+    addTearDown(subscription.cancel);
+    await waitUntil(() => outlet.haveConsumers);
+    outlet.pushSample([1, 2]);
+    await waitUntil(() => received.isNotEmpty);
+    subscription.pause();
+    outlet.pushSample([3, 4]);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(received, hasLength(1));
+    subscription.resume();
+    await waitUntil(() => received.length == 2);
+    expect(received.last.samples, [3, 4]);
+    expect(() => inlet.pullSample(), throwsStateError);
+    expect(() => inlet.open(), throwsStateError);
+    expect(() => inlet.setPostprocessing(0), throwsStateError);
   });
 
   test('destroy cancels a worker during startup and rejects reuse', () async {
@@ -233,6 +360,42 @@ void main() {
       throwsA(isA<LslLostException>()),
     );
   });
+
+  test(
+    'a worker recovers a stable source and cancels during recovery',
+    () async {
+      final (first, inlet) = await pair(ChannelFormat.float32, recover: true);
+      final description = first.streamInfo;
+      Outlet? replacement;
+      final samples = <LslSample>[];
+      final subscription = inlet.open().listen(samples.add);
+      addTearDown(() async {
+        await subscription.cancel();
+        await inlet.destroy();
+        first.destroy();
+        replacement?.destroy();
+        description.destroy();
+      });
+      await waitUntil(() => first.haveConsumers);
+      first.pushSample([1, 2]);
+      await waitUntil(() => samples.isNotEmpty);
+      first.destroy();
+      replacement = Outlet(streamInfo: description);
+      final publisher = Timer.periodic(const Duration(milliseconds: 20), (_) {
+        replacement!.pushSample([9, 10]);
+      });
+      try {
+        await waitUntil(
+          () => samples.any((sample) => sample.samples.first == 9),
+        );
+      } finally {
+        publisher.cancel();
+      }
+      replacement.destroy();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await subscription.cancel().timeout(const Duration(seconds: 3));
+    },
+  );
 
   test('a canceled inlet can start a new sample worker', () async {
     final (outlet, inlet) = await pair(ChannelFormat.float32);
@@ -292,7 +455,11 @@ void main() {
   );
 }
 
-Future<(Outlet, Inlet)> pair(ChannelFormat format, {double rate = 0}) async {
+Future<(Outlet, Inlet)> pair(
+  ChannelFormat format, {
+  double rate = 0,
+  bool recover = false,
+}) async {
   final info = StreamInfo(
     name: 'test-${format.name}',
     type: 'test',
@@ -309,7 +476,7 @@ Future<(Outlet, Inlet)> pair(ChannelFormat format, {double rate = 0}) async {
     property: 'source_id',
     timeout: 3,
   ))!;
-  final inlet = Inlet(streamInfo: connection, recover: false);
+  final inlet = Inlet(streamInfo: connection, recover: recover);
   connection.destroy();
   return (outlet, inlet);
 }

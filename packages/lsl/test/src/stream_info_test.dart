@@ -42,6 +42,17 @@ void main() {
     expect(decoded.name, published.name);
     expect(decoded.uid, published.uid);
     expect(decoded.xml, contains('<manufacturer>Updated</manufacturer>'));
+    for (final rate in ['nan', 'inf', '-1']) {
+      expect(
+        () => StreamInfo.fromXml(
+          published.xml.replaceFirst(
+            RegExp(r'<nominal_srate>[^<]*</nominal_srate>'),
+            '<nominal_srate>$rate</nominal_srate>',
+          ),
+        ),
+        throwsFormatException,
+      );
+    }
     published.destroy();
     outlet.destroy();
     decoded.destroy();
