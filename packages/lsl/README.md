@@ -38,6 +38,8 @@ Sample methods accept a named `timestamp` parameter.
 A numeric chunk contains a positive multiple of `channelCount` values in sample-major order.
 An explicit chunk timestamp identifies its last sample.
 Integer formats require integers within the native range. The API preserves int64 precision.
+For a one-off sample, call `waitForConsumers` before the send and check its result.
+A send without a connected consumer does not guarantee delivery.
 LSL uses a monotonic local clock. Its timestamps are not UTC or Unix timestamps.
 
 ## Receive samples

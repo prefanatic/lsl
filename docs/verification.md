@@ -26,10 +26,10 @@ Archive tests cover SHA-256 checks, offline sources, cache reuse, HTTP errors, a
 The CI coverage check requires 90% line coverage for handwritten library code.
 It excludes generated C bindings and export-only files.
 
-## Remaining checks
+## Scope of local verification
 
-- Linux and Windows tests and builds require the CI hosts.
-- The GitHub CI workflow has not run because the repository has no pushed commit.
+- Linux and Windows tests and builds run on the CI hosts.
+- See the [CI runs](https://github.com/prefanatic/lsl/actions/workflows/ci.yaml) for hosted verification results.
 - Physical Android and iOS tests must verify network permissions, Wi-Fi discovery, and sample transfer.
 - Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
 - Linux arm64, Windows arm64, and iOS x64 simulator builds have no local verification.

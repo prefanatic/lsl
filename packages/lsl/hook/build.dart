@@ -103,6 +103,8 @@ void main(List<String> arguments) async {
         },
       },
       flags: [
+        // LSL timeout exceptions must release native mutexes during unwinding.
+        if (os == OS.windows) '/EHsc',
         if (os != OS.windows) ...[
           '-fvisibility=hidden',
           '-fvisibility-inlines-hidden',

@@ -18,6 +18,7 @@ void main() {
           outlet.destroy();
         });
         inlet.openStream(timeout: 2);
+        expect(outlet.waitForConsumers(timeout: 2), isTrue);
         final List<num> values = switch (format) {
           ChannelFormat.float32 || ChannelFormat.double64 => [1.25, -2.5],
           ChannelFormat.int64 => [9007199254740993, -9007199254740993],
@@ -49,6 +50,7 @@ void main() {
         outlet.destroy();
       });
       inlet.openStream(timeout: 2);
+      expect(outlet.waitForConsumers(timeout: 2), isTrue);
       outlet.pushChunk([1, 2, 3, 4], timestamp: 20);
       final first = inlet.pullSample(timeout: 2)!;
       final last = inlet.pullSample(timeout: 2)!;
@@ -66,6 +68,7 @@ void main() {
       outlet.destroy();
     });
     inlet.openStream(timeout: 2);
+    expect(outlet.waitForConsumers(timeout: 2), isTrue);
     outlet.pushStrings(['event α', '心拍'], timestamp: 14.5);
     final result = inlet.pullStrings(timeout: 2)!;
     expect(result.samples, ['event α', '心拍']);
@@ -98,6 +101,7 @@ void main() {
     addTearDown(inlet.destroy);
     expect(inlet.channelCount, 1);
     inlet.openStream(timeout: 2);
+    expect(outlet.waitForConsumers(timeout: 2), isTrue);
     outlet.pushString('marker α', timestamp: 12.5);
     final explicit = inlet.pullStrings(timeout: 2)!;
     expect(explicit.timestamp, 12.5);
@@ -156,6 +160,7 @@ void main() {
     expect(received[0].samples, [1, 2]);
     expect(received[1].samples, [3, 4]);
     inlet.openStream(timeout: 2);
+    expect(outlet.waitForConsumers(timeout: 2), isTrue);
     inlet.closeStream();
   });
 
@@ -219,6 +224,7 @@ void main() {
       outlet.destroy();
     });
     inlet.openStream(timeout: 2);
+    expect(outlet.waitForConsumers(timeout: 2), isTrue);
     outlet.destroy();
     await expectLater(
       Future<void>(() {

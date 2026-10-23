@@ -60,6 +60,8 @@ Allow local UDP and TCP traffic through the host firewall.
 The hook builds a shared library and the Dart or Flutter tool bundles it.
 The application needs no system-wide liblsl installation.
 Windows uses the Visual Studio toolchain and the system socket libraries.
+The build enables `/EHsc` so C++ timeout exceptions release native locks during stack unwinding.
+See [Microsoft's exception model](https://learn.microsoft.com/en-us/cpp/build/reference/eh-exception-handling-model).
 Linux uses the target C++ runtime and pthreads.
 
 ## Scope of support
