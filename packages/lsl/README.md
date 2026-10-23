@@ -15,7 +15,7 @@ It does not support the web.
 ```dart
 import 'package:lsl/lsl.dart';
 
-void main() {
+Future<void> main() async {
   final info = StreamInfo(
     name: 'Dart signal', type: 'EEG', channelCount: 2,
     nominalSamplingRate: 100, sourceId: 'sensor-1',
@@ -25,8 +25,10 @@ void main() {
   info.destroy();
   try {
     if (!outlet.waitForConsumers(timeout: 5)) return;
-    outlet.pushSample([1.25, 2.5], timestamp: localClock());
-    outlet.pushChunk([1, 2, 3, 4]);
+    for (var sample = 0; sample < 100; sample++) {
+      outlet.pushSample([sample, sample * 2], timestamp: localClock());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
   } finally {
     outlet.destroy();
   }
@@ -37,10 +39,12 @@ Each sample must contain exactly `channelCount` values.
 The inlet derives `channelCount` from its stream description.
 Sample methods accept a named `timestamp` parameter.
 A numeric chunk contains a positive multiple of `channelCount` values in sample-major order.
+For example, `outlet.pushChunk([1, 2, 3, 4])` queues two samples for a two-channel outlet.
 An explicit chunk timestamp identifies its last sample.
 Integer formats require integers within the native range. The API preserves int64 precision.
 For a one-off sample, call `waitForConsumers` before the send and check its result.
 A send without a connected consumer does not guarantee delivery.
+Keep the outlet alive while it publishes. A push queues data and does not acknowledge delivery.
 LSL uses a monotonic local clock. Its timestamps are not UTC or Unix timestamps.
 Zero selects the local clock. `-1` selects LSL's deduced timestamp from the preceding sample and nominal rate.
 Other finite timestamps pass through unchanged, including negative values.
