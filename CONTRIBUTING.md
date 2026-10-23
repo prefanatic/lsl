@@ -33,6 +33,8 @@ Run `flutter test` from `packages/lsl_flutter` and `packages/lsl_flutter/example
 Run `dart doc --validate-links --output build/api` from `packages/lsl` to validate API links.
 CI builds the desktop examples and executes bundled AOT examples.
 CI also builds Android and unsigned iOS examples.
+CI runs the transport integration tests on an iOS simulator.
+Run `flutter test integration_test/transport_test.dart -d <device-id>` from the example directory for a local mobile check.
 Record physical-device tests separately. A successful build does not verify mobile network permissions.
 
 Regenerate bindings from the root with `dart run packages/lsl/tool/ffigen.dart`.

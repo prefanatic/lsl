@@ -16,8 +16,8 @@ API documentation checks now reject broken links and unresolved references.
 | Linux x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
 | macOS arm64 | Native tests, Flutter tests, bundled AOT CLI | Universal arm64/x64 release example |
 | Windows x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
-| Android arm, arm64, x64 | Physical-device network tests remain pending | Release APK |
-| iOS arm64 simulator | Network behavior remains unverified | Simulator example |
+| Android arm, arm64, x64 | Local int64 and UTF-8 loopback on an arm64 SDK 36 emulator | Release APK |
+| iOS arm64 simulator | Local int64 and UTF-8 loopback on iOS 27 | Simulator example |
 | iOS arm64 device | Physical-device network tests remain pending | Unsigned release example |
 
 ## Final local review
@@ -26,6 +26,7 @@ API documentation checks now reject broken links and unresolved references.
 - The native and tool suites contain 44 tests. The native suites passed through the Flutter runner with `--no-pub`.
 - Handwritten library coverage reached 95.6% (521 of 545 lines) through the Flutter runner.
 - The Flutter package test and example widget test passed.
+- Both mobile transport tests passed on the iOS 27 simulator and Android SDK 36 arm64 emulator.
 - Both API documentation builds passed with zero warnings and zero errors.
 - External Dart and Flutter consumers resolved path dependencies outside the workspace and loaded liblsl.
 - The external Dart consumer received a marker through a worker inlet.
@@ -46,6 +47,8 @@ It excludes generated C bindings and export-only libraries. It rejects missing s
 ## Remaining scope
 
 Physical Android and iOS tests must verify permissions, Wi-Fi discovery, and sample transfer on the intended networks.
+The mobile smoke tests verify discovery and transport within one simulated device.
+They do not verify communication between separate physical devices.
 Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
 Android SDK 37 permission behavior requires a matching device or emulator and a consuming application that targets SDK 37.
 Linux arm64, Windows arm64, and iOS x64 simulator targets lack build or runtime verification.

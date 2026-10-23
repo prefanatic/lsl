@@ -82,4 +82,6 @@ The example uses Android API 24, iOS 15, and macOS 12 as its deployment minimums
 The consuming application must also meet its Flutter SDK's platform minimums.
 Linux arm64, Windows arm64, and iOS x64 simulator targets lack execution or build verification.
 The macOS release build contains both arm64 and x64 native libraries; CI executes only arm64.
+The mobile smoke tests passed locally on an arm64 Android SDK 36 emulator and an iOS 27 simulator.
+CI also runs these tests on an iOS simulator.
 Run physical-device tests before a release that claims validated mobile discovery.

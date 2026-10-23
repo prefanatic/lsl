@@ -71,6 +71,13 @@ jobs:
         working-directory: packages/lsl_flutter/example
       - run: flutter build ios --release --no-codesign
         working-directory: packages/lsl_flutter/example
+      - name: Test transport on an iOS simulator
+        working-directory: packages/lsl_flutter/example
+        run: |
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(device["udid"] for runtime in devices.values() for device in runtime if device["name"].startswith("iPhone")))')
+          xcrun simctl boot "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          flutter test --no-pub integration_test/transport_test.dart -d "$simulator_id"
 
   generated-bindings:
     runs-on: macos-15

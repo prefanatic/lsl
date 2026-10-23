@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   lsl_flutter: ^0.1.0-dev.1
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
   lints: ^6.0.0
