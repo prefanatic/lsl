@@ -31,7 +31,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
       - run: flutter pub get --enforce-lockfile
       - run: dart analyze --fatal-infos
-      - run: dart format --output=none --set-exit-if-changed packages tool
+      - run: dart format --output=none --set-exit-if-changed packages tool test
+      - run: dart test test/tool
       - run: dart test --coverage=coverage
         working-directory: packages/lsl
       - name: Check coverage of handwritten library code
@@ -82,3 +83,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: dart run packages/lsl/tool/ffigen.dart
       - run: git diff --exit-code -- packages/lsl/lib/src/third_party
+      - run: dart doc --validate-links --output build/api
+        working-directory: packages/lsl
+      - run: dart doc --validate-links --output build/api
+        working-directory: packages/lsl_flutter
