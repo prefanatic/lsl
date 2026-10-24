@@ -23,7 +23,7 @@ API documentation checks now reject broken links and unresolved references.
 ## Final local review
 
 - Strict Dart analysis and format validation passed.
-- The native and tool suites contain 44 tests. The native suites passed through the Flutter runner with `--no-pub`.
+- The review passed 39 native tests and five tool tests. The native suites used the Flutter runner with `--no-pub`.
 - Handwritten library coverage reached 95.6% (521 of 545 lines) through the Flutter runner.
 - The Flutter package test and example widget test passed.
 - Both mobile transport tests passed on the iOS 27 simulator and Android SDK 36 arm64 emulator.
@@ -61,3 +61,15 @@ The supported AOT path is `dart build cli`, which bundles the native asset.
 A direct `dart test --compiler exe` run on this SDK did not supply a native asset map.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for reproducible commands.
+
+## Hosted simulator result and execution limits
+
+On 2026-10-23, [run 40018108955](https://github.com/prefanatic/lsl/actions/runs/40018108955) passed the desktop checks, binding generation, API documentation, and mobile builds.
+The hosted simulator transport command stalled after Xcode completed, before the first test result.
+The job had no explicit timeout and reached GitHub's six-hour default.
+The mobile runtime results above came from local simulators. They do not establish a hosted runtime pass.
+
+On 2026-10-24, the workflow received explicit job and step limits and cancellation of superseded runs.
+Simulator boot and test execution now have separate deadlines. The test command also emits verbose logs.
+Three regression tests enforce job limits, step limits, concurrency, and the simulator deadlines.
+Local policy tests and actionlint validate this change. A new hosted run was skipped to preserve Actions minutes.

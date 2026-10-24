@@ -37,6 +37,21 @@ CI runs the transport integration tests on an iOS simulator.
 Run `flutter test integration_test/transport_test.dart -d <device-id>` from the example directory for a local mobile check.
 Record physical-device tests separately. A successful build does not verify mobile network permissions.
 
+## CI execution limits
+
+Every job and step must declare `timeout-minutes`.
+The desktop jobs have a 20-minute limit. The mobile job has a 25-minute limit.
+The binding and API documentation job has an 8-minute limit.
+Simulator selection, boot, transport, and shutdown have separate limits of 1, 3, 8, and 1 minutes.
+The transport command also sets a two-minute timeout for each test and emits verbose startup logs.
+A timeout fails the check. Do not suppress it with `continue-on-error`.
+New commits cancel superseded workflow runs on the same ref.
+The root tool tests reject missing job or step limits.
+
+Run `actionlint .github/workflows/ci.yaml` after workflow changes when actionlint is available.
+
+## Native changes and publication
+
 Regenerate bindings from the root with `dart run packages/lsl/tool/ffigen.dart`.
 Install libclang first. Keep generated output separate from handwritten edits.
 See [native dependencies](docs/native-dependencies.md) before a native version change.
