@@ -92,6 +92,6 @@ Check [native dependency licenses](docs/native-dependencies.md) when a source ve
 
 ## Publication
 
-Keep the repository private and retain `publish_to: none` until the owner authorizes publication.
+The repository is public. Retain `publish_to: none` until the owner authorizes publication on pub.dev.
 Check package-name availability and run `dart pub publish --dry-run` from each package directory before publication.
 Review package contents, dependencies, licenses, and README links.

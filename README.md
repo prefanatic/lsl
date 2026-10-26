@@ -14,8 +14,8 @@ See [platform setup](docs/platforms.md) for architectures, compilers, and networ
 
 ## Add a dependency
 
-The repository is private, and the packages are not published.
-Use a path dependency for a local checkout, or a Git dependency with repository access.
+The repository is public. The packages are not published on pub.dev.
+Use a Git dependency or a path dependency for a local checkout.
 
 For a Dart application:
 
@@ -23,7 +23,7 @@ For a Dart application:
 dependencies:
   lsl:
     git:
-      url: git@github.com:prefanatic/lsl.git
+      url: https://github.com/prefanatic/lsl.git
       path: packages/lsl
 ```
 
@@ -33,12 +33,12 @@ For a Flutter application, override the transitive `lsl` dependency with the sam
 dependencies:
   lsl_flutter:
     git:
-      url: git@github.com:prefanatic/lsl.git
+      url: https://github.com/prefanatic/lsl.git
       path: packages/lsl_flutter
 dependency_overrides:
   lsl:
     git:
-      url: git@github.com:prefanatic/lsl.git
+      url: https://github.com/prefanatic/lsl.git
       path: packages/lsl
 ```
 
