@@ -38,8 +38,11 @@ void main() {
   });
 
   test('simulator startup, transport, and cleanup have separate deadlines', () {
-    final steps = ((jobs['mobile-builds'] as YamlMap)['steps'] as YamlList)
+    final steps = ((jobs['ios'] as YamlMap)['steps'] as YamlList)
         .cast<YamlMap>();
+    final create = steps.singleWhere(
+      (step) => step['name'] == 'Create an iOS simulator',
+    );
     final boot = steps.singleWhere(
       (step) => step['name'] == 'Boot the iOS simulator',
     );
@@ -47,8 +50,11 @@ void main() {
       (step) => step['name'] == 'Test transport on an iOS simulator',
     );
     final cleanup = steps.singleWhere(
-      (step) => step['name'] == 'Shut down the iOS simulator',
+      (step) => step['name'] == 'Delete the iOS simulator',
     );
+    expect(create['run'], contains('simctl create'));
+    expect(create['run'], isNot(contains('simctl list')));
+    expect(boot['run'], contains('Applications/Simulator.app'));
     expect(boot['timeout-minutes'], lessThanOrEqualTo(3));
     expect(boot['run'], isNot(contains('flutter test')));
     expect(transport['timeout-minutes'], lessThanOrEqualTo(8));
@@ -57,5 +63,11 @@ void main() {
     expect(transport['continue-on-error'], isNot(true));
     expect(cleanup['if'], contains('always()'));
     expect(cleanup['timeout-minutes'], 1);
+    expect(cleanup['run'], contains('simctl delete'));
+    expect(
+      steps.any((step) => '${step['run']}'.contains('build ios --simulator')),
+      isFalse,
+      reason: 'The transport command already builds the simulator app.',
+    );
   });
 }

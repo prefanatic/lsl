@@ -3,6 +3,12 @@ name: Verify packages
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      ios_only:
+        description: Run only the bounded iOS checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,6 +19,7 @@ concurrency:
 
 jobs:
   desktop:
+    if: ${{ !inputs.ios_only }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -64,6 +71,11 @@ jobs:
       - run: flutter build ${{ matrix.target }} --release
         timeout-minutes: 6
         working-directory: packages/lsl_flutter/example
+      - name: Build the Android example
+        if: matrix.target == 'linux'
+        run: flutter build apk --release
+        timeout-minutes: 12
+        working-directory: packages/lsl_flutter/example
       - run: dart build cli --target example/main.dart --output build/cli
         timeout-minutes: 4
         working-directory: packages/lsl
@@ -78,9 +90,9 @@ jobs:
         run: ./build/cli/bundle/bin/main.exe
         working-directory: packages/lsl
 
-  mobile-builds:
+  ios:
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         timeout-minutes: 2
@@ -91,20 +103,14 @@ jobs:
           cache: true
       - run: flutter pub get --enforce-lockfile
         timeout-minutes: 3
-      - run: flutter build apk --release
-        timeout-minutes: 12
-        working-directory: packages/lsl_flutter/example
-      - run: flutter build ios --simulator --no-codesign
-        timeout-minutes: 8
-        working-directory: packages/lsl_flutter/example
       - run: flutter build ios --release --no-codesign
         timeout-minutes: 8
         working-directory: packages/lsl_flutter/example
-      - name: Select an iOS simulator
+      - name: Create an iOS simulator
         id: simulator
         timeout-minutes: 1
         run: |
-          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(device["udid"] for runtime in devices.values() for device in runtime if device["name"].startswith("iPhone")))')
+          simulator_id=$(xcrun simctl create "LSL CI" com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro)
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
       - name: Boot the iOS simulator
         timeout-minutes: 3
@@ -112,6 +118,10 @@ jobs:
           LSL_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
         run: |
           xcrun simctl boot "$LSL_SIMULATOR_ID"
+          simulator_app="$(xcode-select -p)/Applications/Simulator.app"
+          if [ -d "$simulator_app" ]; then
+            open -a "$simulator_app" --args -CurrentDeviceUDID "$LSL_SIMULATOR_ID"
+          fi
           xcrun simctl bootstatus "$LSL_SIMULATOR_ID" -b
       - name: Test transport on an iOS simulator
         timeout-minutes: 8
@@ -119,14 +129,17 @@ jobs:
         env:
           LSL_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
         run: flutter test --no-pub --verbose --reporter expanded --timeout 2m integration_test/transport_test.dart -d "$LSL_SIMULATOR_ID"
-      - name: Shut down the iOS simulator
+      - name: Delete the iOS simulator
         if: ${{ always() && steps.simulator.outputs.id != '' }}
         timeout-minutes: 1
         env:
           LSL_SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
-        run: xcrun simctl shutdown "$LSL_SIMULATOR_ID"
+        run: |
+          xcrun simctl shutdown "$LSL_SIMULATOR_ID" || true
+          xcrun simctl delete "$LSL_SIMULATOR_ID"
 
   generated-bindings:
+    if: ${{ !inputs.ios_only }}
     runs-on: macos-15
     timeout-minutes: 8
     steps:

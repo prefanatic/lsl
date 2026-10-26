@@ -40,13 +40,19 @@ Record physical-device tests separately. A successful build does not verify mobi
 ## CI execution limits
 
 Every job and step must declare `timeout-minutes`.
-The desktop jobs have a 20-minute limit. The mobile job has a 25-minute limit.
+The desktop jobs have a 20-minute limit. The iOS job has a 15-minute limit.
 The binding and API documentation job has an 8-minute limit.
-Simulator selection, boot, transport, and shutdown have separate limits of 1, 3, 8, and 1 minutes.
+Simulator creation, boot, transport, and deletion have separate limits of 1, 3, 8, and 1 minutes.
 The transport command also sets a two-minute timeout for each test and emits verbose startup logs.
 A timeout fails the check. Do not suppress it with `continue-on-error`.
 New commits cancel superseded workflow runs on the same ref.
 The root tool tests reject missing job or step limits.
+The iOS job creates a fresh device with the newest compatible installed runtime.
+It deletes that device after the check. The transport command builds the simulator app once.
+The Linux desktop job also builds Android to reduce macOS runner use.
+
+Use the workflow's manual `ios_only` input for a targeted hosted check.
+This input skips the desktop and binding jobs. Its iOS job retains the 15-minute limit.
 
 Run `actionlint .github/workflows/ci.yaml` after workflow changes when actionlint is available.
 

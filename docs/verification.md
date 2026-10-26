@@ -1,6 +1,6 @@
 # Verification
 
-Verification date: 2026-10-23.
+Verification date: 2026-10-26.
 Local host: macOS arm64, Flutter 3.47.5, Dart 3.13.4, Xcode 27.1.
 
 ## Automated checks
@@ -20,7 +20,7 @@ API documentation checks now reject broken links and unresolved references.
 | iOS arm64 simulator | Local int64 and UTF-8 loopback on iOS 27 | Simulator example |
 | iOS arm64 device | Physical-device network tests remain pending | Unsigned release example |
 
-## Final local review
+## Local review on 2026-10-23
 
 - Strict Dart analysis and format validation passed.
 - The review passed 39 native tests and five tool tests. The native suites used the Flutter runner with `--no-pub`.
@@ -73,3 +73,34 @@ On 2026-10-24, the workflow received explicit job and step limits and cancellati
 Simulator boot and test execution now have separate deadlines. The test command also emits verbose logs.
 Three regression tests enforce job limits, step limits, concurrency, and the simulator deadlines.
 Local policy tests and actionlint validate this change. A new hosted run was skipped to preserve Actions minutes.
+
+## Local hang check and cleanup on 2026-10-26
+
+The hosted hang did not recur in two fresh local simulators.
+The unchanged code passed both transport tests on iOS 26.5 in 56 seconds.
+The revised code passed both transport tests on a fresh iOS 27 simulator in 80 seconds, including boot and cleanup.
+Both runs had external deadlines. Both temporary simulators were deleted after the checks.
+The local Xcode installation has no Simulator application, so both checks used headless execution.
+These results do not identify the cause of the previous hosted hang.
+
+The workflow now creates a fresh simulator with the newest compatible installed runtime.
+It opens the Simulator application when available and waits for boot completion before the transport command.
+It deletes the temporary device after the check. Explicit job and step deadlines remain in force.
+The transport command builds the simulator app once. The Linux desktop job also builds the Android example.
+The iOS job has a 15-minute limit. The manual `ios_only` input can restrict a hosted check to this job.
+
+The cleanup defers native inlet creation until an operation needs the handle.
+Worker reception reuses native buffers and shares the synchronous sample conversion code.
+Integer range checks select their limits once per buffer write.
+Each native source version now has one constant for its archive URL, directory name, and build identification.
+
+- All 43 native tests passed, including signed integer limits and string reception across idle waits.
+- All eight tool tests passed.
+- Handwritten library coverage reached 95.4% (519 of 544 lines).
+- The Flutter package test and example widget test passed.
+- Strict Dart analysis, format validation, actionlint, and the Git whitespace check passed.
+- Both API documentation builds passed with zero warnings and zero errors.
+
+The cleanup did not receive new hosted platform results. The push skips CI to preserve Actions minutes.
+Linux, Windows, and Android were not rerun locally for this cleanup.
+The repository remains private, and package publication remains disabled.
