@@ -108,8 +108,10 @@ inlet.setPostprocessing(
 
 Processing replaces the original timestamps. `setPostprocessing(0)` disables processing.
 `closeStream` drops queued samples and permits a later synchronous or worker connection.
-The wrapper replaces the native handle to avoid liblsl 1.17.7's
+The wrapper releases the native handle to avoid liblsl 1.17.7's
 [close/reopen defect](https://github.com/sccn/liblsl/issues/180).
+A later synchronous operation creates a new native handle when necessary.
+Worker reception creates its native inlet in the worker isolate.
 
 ## Buffer configuration
 

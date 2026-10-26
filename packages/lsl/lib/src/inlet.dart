@@ -31,34 +31,24 @@ class Inlet implements Finalizable {
     if (maxChunkSize < 0 || maxChunkSize > 0x7fffffff) {
       throw RangeError.range(maxChunkSize, 0, 0x7fffffff, 'maxChunkSize');
     }
-    final description = streamInfo.copy();
-    try {
-      return Inlet._(
-        _createHandle(description, maxBuffered, maxChunkSize, recover, 0),
-        count,
-        format,
-        description,
-        maxBuffered,
-        maxChunkSize,
-        recover,
-      );
-    } catch (_) {
-      description.destroy();
-      rethrow;
-    }
+    return Inlet._(
+      count,
+      format,
+      streamInfo.copy(),
+      maxBuffered,
+      maxChunkSize,
+      recover,
+    );
   }
 
   Inlet._(
-    this._pointer,
     this.channelCount,
     this.channelFormat,
     this._description,
     this._maxBuffered,
     this._maxChunkSize,
     this._recover,
-  ) {
-    _finalizer.attach(this, _pointer.cast(), detach: this);
-  }
+  );
 
   static final _finalizer = NativeFinalizer(
     Native.addressOf<
@@ -66,7 +56,7 @@ class Inlet implements Finalizable {
         >(native.lsl_destroy_inlet)
         .cast(),
   );
-  Pointer<native.lsl_inlet_struct_> _pointer;
+  Pointer<native.lsl_inlet_struct_> _pointer = nullptr;
 
   /// The number of values in each sample.
   final int channelCount;
@@ -84,12 +74,40 @@ class Inlet implements Finalizable {
   Future<void>? _closing;
 
   Pointer<native.lsl_inlet_struct_> get _handle {
-    if (_destroyed) throw StateError('Inlet has been destroyed.');
+    _checkAlive();
+    if (_pointer == nullptr) {
+      final pointer = requirePointer(
+        native.lsl_create_inlet(
+          _description.pointer,
+          _maxBuffered,
+          _maxChunkSize,
+          _recover ? 1 : 0,
+        ),
+        'create inlet',
+      );
+      try {
+        if (_processing != 0) {
+          checkError(
+            native.lsl_set_postprocessing(pointer, _processing),
+            'set postprocessing',
+          );
+        }
+        _finalizer.attach(this, pointer.cast(), detach: this);
+        _pointer = pointer;
+      } catch (_) {
+        native.lsl_destroy_inlet(pointer);
+        rethrow;
+      }
+    }
     return _pointer;
   }
 
+  void _checkAlive() {
+    if (_destroyed) throw StateError('Inlet has been destroyed.');
+  }
+
   void _checkSynchronous() {
-    _handle;
+    _checkAlive();
     if (_session != null) {
       throw StateError('The inlet has an active sample stream.');
     }
@@ -108,33 +126,23 @@ class Inlet implements Finalizable {
   }
 
   /// Disconnects and drops queued samples. A later call can open a new connection.
-  /// This synchronous call replaces the handle to avoid liblsl 1.17.7's reopen defect.
+  /// This synchronous call releases the handle to avoid liblsl 1.17.7's reopen defect.
   void closeStream() {
     _checkSynchronous();
-    final replacement = _createHandle(
-      _description,
-      _maxBuffered,
-      _maxChunkSize,
-      _recover,
-      _processing,
-    );
-    _finalizer.detach(this);
-    native.lsl_destroy_inlet(_pointer);
-    _pointer = replacement;
-    _finalizer.attach(this, _pointer.cast(), detach: this);
+    _releaseHandle();
     _opened = false;
   }
 
   /// The number of samples currently in the native queue.
   int get samplesAvailable {
     _checkSynchronous();
-    return native.lsl_samples_available(_handle);
+    return _pointer == nullptr ? 0 : native.lsl_samples_available(_pointer);
   }
 
   /// Drops queued samples and returns their count.
   int flush() {
     _checkSynchronous();
-    return native.lsl_inlet_flush(_handle);
+    return _pointer == nullptr ? 0 : native.lsl_inlet_flush(_pointer);
   }
 
   /// Configures clock synchronization, jitter removal, and monotonic timestamps.
@@ -143,10 +151,12 @@ class Inlet implements Finalizable {
   void setPostprocessing(int flags) {
     _checkSynchronous();
     if (flags < 0 || flags > 15) throw RangeError.range(flags, 0, 15, 'flags');
-    checkError(
-      native.lsl_set_postprocessing(_handle, flags),
-      'set postprocessing',
-    );
+    if (_pointer != nullptr) {
+      checkError(
+        native.lsl_set_postprocessing(_pointer, flags),
+        'set postprocessing',
+      );
+    }
     _processing = flags;
   }
 
@@ -182,23 +192,14 @@ class Inlet implements Finalizable {
       throw StateError('Use pullStrings for a string inlet.');
     }
     _opened = true;
-    return using((arena) {
-      final buffer = NumericBuffer(arena, channelFormat, channelCount);
-      final error = arena<Int32>();
-      final timestamp = native.lsl_pull_sample_v(
+    return using(
+      (arena) => _pullNumeric(
         _handle,
-        buffer.pointer.cast(),
-        buffer.byteLength,
+        NumericBuffer(arena, channelFormat, channelCount),
+        arena<Int32>(),
         timeout,
-        error,
-      );
-      checkError(error.value, 'pull sample');
-      if (timestamp == 0) return null;
-      return (
-        timestamp: timestamp,
-        samples: List<num>.unmodifiable(buffer.values),
-      );
-    });
+      ),
+    );
   }
 
   /// Returns null when no string sample arrives within [timeout] seconds.
@@ -210,32 +211,15 @@ class Inlet implements Finalizable {
       throw StateError('The inlet does not use string channels.');
     }
     _opened = true;
-    return using((arena) {
-      final buffer = arena<Pointer<Char>>(channelCount);
-      final error = arena<Int32>();
-      try {
-        final timestamp = native.lsl_pull_sample_str(
-          _handle,
-          buffer,
-          channelCount,
-          timeout,
-          error,
-        );
-        checkError(error.value, 'pull string sample');
-        if (timestamp == 0) return null;
-        return (
-          timestamp: timestamp,
-          samples: List<String>.unmodifiable([
-            for (var i = 0; i < channelCount; i++)
-              buffer[i].cast<Utf8>().toDartString(),
-          ]),
-        );
-      } finally {
-        for (var i = 0; i < channelCount; i++) {
-          if (buffer[i] != nullptr) native.lsl_destroy_string(buffer[i]);
-        }
-      }
-    });
+    return using(
+      (arena) => _pullStrings(
+        _handle,
+        arena<Pointer<Char>>(channelCount),
+        channelCount,
+        arena<Int32>(),
+        timeout,
+      ),
+    );
   }
 
   /// Receives numeric samples in an isolate with bounded native waits.
@@ -246,7 +230,7 @@ class Inlet implements Finalizable {
     if (channelFormat == ChannelFormat.string) {
       throw StateError('Use openStrings for a string inlet.');
     }
-    return _startSession(timeout, false).map((value) => value as LslSample);
+    return _startSession(timeout).cast<LslSample>();
   }
 
   /// Receives UTF-8 samples in a worker. [timeout] limits the initial connection.
@@ -255,13 +239,10 @@ class Inlet implements Finalizable {
     if (channelFormat != ChannelFormat.string) {
       throw StateError('The inlet does not use string channels.');
     }
-    return _startSession(
-      timeout,
-      true,
-    ).map((value) => value as LslStringSample);
+    return _startSession(timeout).cast<LslStringSample>();
   }
 
-  Stream<Object> _startSession(double timeout, bool strings) {
+  Stream<Object> _startSession(double timeout) {
     _checkSynchronous();
     checkTimeout(timeout);
     if (_opened) {
@@ -269,18 +250,7 @@ class Inlet implements Finalizable {
         'Close the synchronous inlet before opening a sample stream.',
       );
     }
-    final session = _SamplerSession(
-      _SamplerArgs(
-        0,
-        _maxBuffered,
-        _maxChunkSize,
-        _recover,
-        timeout,
-        strings,
-        _processing,
-      ),
-      _description,
-    );
+    final session = _SamplerSession(this, timeout);
     _session = session;
     session.done.whenComplete(() {
       if (identical(_session, session)) _session = null;
@@ -294,61 +264,31 @@ class Inlet implements Finalizable {
   Future<void> _destroy() async {
     _destroyed = true;
     await _session?.cancel();
-    _finalizer.detach(this);
-    native.lsl_destroy_inlet(_pointer);
+    _releaseHandle();
     _description.destroy();
+  }
+
+  void _releaseHandle() {
+    if (_pointer == nullptr) return;
+    final pointer = _pointer;
+    _pointer = nullptr;
+    _finalizer.detach(this);
+    native.lsl_destroy_inlet(pointer);
   }
 }
 
-Pointer<native.lsl_inlet_struct_> _createHandle(
-  StreamInfo description,
+typedef _SamplerRequest = ({
+  int infoAddress,
   int maxBuffered,
   int maxChunkSize,
   bool recover,
+  double timeout,
   int processing,
-) {
-  final pointer = requirePointer(
-    native.lsl_create_inlet(
-      description.pointer,
-      maxBuffered,
-      maxChunkSize,
-      recover ? 1 : 0,
-    ),
-    'create inlet',
-  );
-  try {
-    checkError(
-      native.lsl_set_postprocessing(pointer, processing),
-      'set postprocessing',
-    );
-    return pointer;
-  } catch (_) {
-    native.lsl_destroy_inlet(pointer);
-    rethrow;
-  }
-}
-
-class _SamplerArgs {
-  const _SamplerArgs(
-    this.infoAddress,
-    this.maxBuffered,
-    this.maxChunkSize,
-    this.recover,
-    this.timeout,
-    this.strings,
-    this.processing,
-  );
-  final int infoAddress;
-  final int maxBuffered;
-  final int maxChunkSize;
-  final bool recover;
-  final double timeout;
-  final bool strings;
-  final int processing;
-}
+  SendPort destination,
+});
 
 class _SamplerSession {
-  _SamplerSession(this.args, this.description) {
+  _SamplerSession(this.inlet, this.timeout) {
     _controller = StreamController<Object>(
       onListen: _start,
       onPause: () {
@@ -363,8 +303,8 @@ class _SamplerSession {
     );
   }
 
-  final _SamplerArgs args;
-  final StreamInfo description;
+  final Inlet inlet;
+  final double timeout;
   late final StreamController<Object> _controller;
   final _done = Completer<void>();
   ReceivePort? _messages;
@@ -402,21 +342,20 @@ class _SamplerSession {
     Pointer<native.lsl_streaminfo_struct_>? copy;
     try {
       copy = requirePointer(
-        native.lsl_copy_streaminfo(description.pointer),
+        native.lsl_copy_streaminfo(inlet._description.pointer),
         'copy worker description',
       );
-      final workerArgs = _SamplerArgs(
-        copy.address,
-        args.maxBuffered,
-        args.maxChunkSize,
-        args.recover,
-        args.timeout,
-        args.strings,
-        args.processing,
-      );
       await Isolate.spawn(
-        _sampleWorkerEntry,
-        (workerArgs, messages.sendPort),
+        _sampleWorker,
+        (
+          infoAddress: copy.address,
+          maxBuffered: inlet._maxBuffered,
+          maxChunkSize: inlet._maxChunkSize,
+          recover: inlet._recover,
+          timeout: timeout,
+          processing: inlet._processing,
+          destination: messages.sendPort,
+        ),
         onExit: messages.sendPort,
         onError: messages.sendPort,
         errorsAreFatal: true,
@@ -450,7 +389,8 @@ class _SamplerSession {
   }
 }
 
-Future<void> _sampleWorker(_SamplerArgs args, SendPort destination) async {
+Future<void> _sampleWorker(_SamplerRequest args) async {
+  final destination = args.destination;
   final commands = ReceivePort();
   var stopped = false;
   var paused = false;
@@ -481,17 +421,28 @@ Future<void> _sampleWorker(_SamplerArgs args, SendPort destination) async {
       }
       await Future<void>.delayed(Duration.zero);
     }
-    while (!stopped) {
-      if (paused) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        continue;
+    await using((arena) async {
+      final handle = inlet!._handle;
+      final count = inlet.channelCount;
+      final error = arena<Int32>();
+      final Object? Function() pull;
+      if (inlet.channelFormat == ChannelFormat.string) {
+        final buffer = arena<Pointer<Char>>(count);
+        pull = () => _pullStrings(handle, buffer, count, error, 0.05);
+      } else {
+        final buffer = NumericBuffer(arena, inlet.channelFormat, count);
+        pull = () => _pullNumeric(handle, buffer, error, 0.05);
       }
-      final Object? sample = args.strings
-          ? inlet.pullStrings(timeout: 0.05)
-          : inlet.pullSample(timeout: 0.05);
-      if (sample != null) destination.send(sample);
-      await Future<void>.delayed(Duration.zero);
-    }
+      while (!stopped) {
+        if (paused) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          continue;
+        }
+        final sample = pull();
+        if (sample != null) destination.send(sample);
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
   } catch (error, stack) {
     destination.send((
       error is LslException
@@ -506,6 +457,56 @@ Future<void> _sampleWorker(_SamplerArgs args, SendPort destination) async {
   }
 }
 
-void _sampleWorkerEntry((_SamplerArgs, SendPort) payload) {
-  unawaited(_sampleWorker(payload.$1, payload.$2));
+LslSample? _pullNumeric(
+  Pointer<native.lsl_inlet_struct_> inlet,
+  NumericBuffer buffer,
+  Pointer<Int32> error,
+  double timeout,
+) {
+  final timestamp = native.lsl_pull_sample_v(
+    inlet,
+    buffer.pointer.cast(),
+    buffer.byteLength,
+    timeout,
+    error,
+  );
+  checkError(error.value, 'pull sample');
+  return timestamp == 0
+      ? null
+      : (timestamp: timestamp, samples: List<num>.unmodifiable(buffer.values));
+}
+
+LslStringSample? _pullStrings(
+  Pointer<native.lsl_inlet_struct_> inlet,
+  Pointer<Pointer<Char>> buffer,
+  int count,
+  Pointer<Int32> error,
+  double timeout,
+) {
+  try {
+    final timestamp = native.lsl_pull_sample_str(
+      inlet,
+      buffer,
+      count,
+      timeout,
+      error,
+    );
+    checkError(error.value, 'pull string sample');
+    return timestamp == 0
+        ? null
+        : (
+            timestamp: timestamp,
+            samples: List<String>.unmodifiable([
+              for (var i = 0; i < count; i++)
+                buffer[i].cast<Utf8>().toDartString(),
+            ]),
+          );
+  } finally {
+    for (var i = 0; i < count; i++) {
+      if (buffer[i] != nullptr) {
+        native.lsl_destroy_string(buffer[i]);
+        buffer[i] = nullptr;
+      }
+    }
+  }
 }

@@ -11,7 +11,7 @@ import 'package:lsl/src/third_party/liblsl.g.dart' as native;
 /// A numeric sample. Integer formats retain their integer precision.
 typedef LslSample = ({double timestamp, List<num> samples});
 
-/// A UTF-8 sample with a timestamp in the source's LSL clock domain.
+/// A UTF-8 sample. Timestamps use the source's LSL clock unless postprocessed.
 typedef LslStringSample = ({double timestamp, List<String> samples});
 
 String _version(int value) => '${value ~/ 100}.${value % 100}';

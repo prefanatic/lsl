@@ -147,6 +147,9 @@ void main() {
         await inlet.destroy();
         outlet.destroy();
       });
+      expect(inlet.samplesAvailable, 0);
+      expect(inlet.flush(), 0);
+      inlet.closeStream();
       inlet.setPostprocessing(8);
       for (var round = 0; round < 2; round++) {
         inlet.openStream(timeout: 2);
@@ -160,6 +163,8 @@ void main() {
         expect(sample?.samples, [round, 2]);
         inlet.closeStream();
         expect(inlet.samplesAvailable, 0);
+        expect(inlet.flush(), 0);
+        inlet.setPostprocessing(8);
       }
       final received = inlet.open().first;
       final publisher = Timer.periodic(const Duration(milliseconds: 20), (_) {
@@ -232,19 +237,26 @@ void main() {
     inlet.closeStream();
   });
 
-  test('string worker receives UTF-8 samples', () async {
+  test('string worker retains samples across idle native waits', () async {
     final (outlet, inlet) = await pair(ChannelFormat.string);
     addTearDown(() async {
       await inlet.destroy();
       outlet.destroy();
     });
-    final result = inlet.openStrings().first;
+    final received = <LslStringSample>[];
+    final subscription = inlet.openStrings().listen(received.add);
+    addTearDown(subscription.cancel);
     await waitUntil(() => outlet.haveConsumers);
-    outlet.pushStrings(['α', 'β']);
-    expect((await result.timeout(const Duration(seconds: 5))).samples, [
-      'α',
-      'β',
-    ]);
+    outlet.pushStrings(['α', '心拍'], timestamp: 10);
+    await waitUntil(() => received.isNotEmpty);
+    // Idle waits must not reuse released string pointers.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    outlet.pushStrings(['', 'β'], timestamp: 11);
+    await waitUntil(() => received.length == 2);
+    expect(received[0].samples, ['α', '心拍']);
+    expect(received[1].samples, ['', 'β']);
+    expect(received.map((sample) => sample.timestamp), [10, 11]);
+    expect(() => received[0].samples[0] = 'changed', throwsUnsupportedError);
   });
 
   test('a worker delivers a stream-loss error before its done event', () async {

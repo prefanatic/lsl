@@ -6,9 +6,8 @@ import 'package:lsl/src/stream_info.dart';
 
 /// A numeric buffer within the caller's allocation scope.
 class NumericBuffer {
-  NumericBuffer(Allocator allocator, this.format, int length)
-    : pointer = allocator<Uint8>(length * format.byteWidth),
-      length = length {
+  NumericBuffer(Allocator allocator, this.format, this.length)
+    : pointer = allocator<Uint8>(length * format.byteWidth) {
     if (format == ChannelFormat.string) {
       throw ArgumentError('Use a string sample API.');
     }
@@ -33,25 +32,27 @@ class NumericBuffer {
 
   void write(List<num> samples) {
     final target = values;
+    if (format == ChannelFormat.float32 || format == ChannelFormat.double64) {
+      for (var i = 0; i < samples.length; i++) {
+        target[i] = samples[i].toDouble();
+      }
+      return;
+    }
+    final (min, max) = switch (format) {
+      ChannelFormat.int8 => (-128, 127),
+      ChannelFormat.int16 => (-32768, 32767),
+      ChannelFormat.int32 => (-2147483648, 2147483647),
+      _ => (-9223372036854775808, 9223372036854775807),
+    };
     for (var i = 0; i < samples.length; i++) {
       final value = samples[i];
-      if (format == ChannelFormat.float32 || format == ChannelFormat.double64) {
-        target[i] = value.toDouble();
-      } else {
-        if (value is! int) {
-          throw ArgumentError.value(value, 'sample', 'Requires an integer.');
-        }
-        final (min, max) = switch (format) {
-          ChannelFormat.int8 => (-128, 127),
-          ChannelFormat.int16 => (-32768, 32767),
-          ChannelFormat.int32 => (-2147483648, 2147483647),
-          _ => (-9223372036854775808, 9223372036854775807),
-        };
-        if (value < min || value > max) {
-          throw RangeError.range(value, min, max, 'sample');
-        }
-        target[i] = value;
+      if (value is! int) {
+        throw ArgumentError.value(value, 'sample', 'Requires an integer.');
       }
+      if (value < min || value > max) {
+        throw RangeError.range(value, min, max, 'sample');
+      }
+      target[i] = value;
     }
   }
 }

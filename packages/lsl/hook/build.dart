@@ -95,7 +95,7 @@ void main(List<String> arguments) async {
         'LOGURU_DEBUG_LOGGING': '0',
         'LOGURU_STACKTRACES': '0',
         'LSL_LIBRARY_INFO_STR':
-            '"liblsl:$liblslVersion/pugixml:1.15/dart-hooks"',
+            '"liblsl:$liblslVersion/pugixml:$pugixmlVersion/dart-hooks"',
         if (os == OS.windows) ...{
           'LSLNOAUTOLINK': null,
           '_CRT_SECURE_NO_WARNINGS': null,

@@ -6,16 +6,19 @@ import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
 const liblslVersion = '1.17.7';
+const pugixmlVersion = '1.15';
 
 const sourceArchives = [
   SourceArchive(
-    name: 'liblsl-1.17.7',
-    url: 'https://codeload.github.com/sccn/liblsl/tar.gz/refs/tags/v1.17.7',
+    name: 'liblsl-$liblslVersion',
+    url:
+        'https://codeload.github.com/sccn/liblsl/tar.gz/refs/tags/v$liblslVersion',
     hash: '19604fb1b30c753457e8bf1430341d84012834c0cf8d2ca921e8151d31220df9',
   ),
   SourceArchive(
-    name: 'pugixml-1.15',
-    url: 'https://codeload.github.com/zeux/pugixml/tar.gz/refs/tags/v1.15',
+    name: 'pugixml-$pugixmlVersion',
+    url:
+        'https://codeload.github.com/zeux/pugixml/tar.gz/refs/tags/v$pugixmlVersion',
     hash: 'b39647064d9e28297a34278bfb897092bf33b7c487906ddfc094c9e8868bddcb',
   ),
 ];
