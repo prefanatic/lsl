@@ -27,6 +27,7 @@ Handwritten library coverage reached 95.6% (542 of 567 lines), above the 90% gat
 Tests cover all seven channel formats, chunks, timestamps, ownership, discovery, clock correction, errors, recovery, cancellation, and teardown.
 Source archive tests check integrity, offline use, cache reuse, HTTP failures, and unsafe paths.
 External Dart and Flutter consumers also loaded the native asset outside the workspace on 2026-10-23.
+A separate Dart consumer built and loaded liblsl with code_assets 1.2.1 and native_toolchain_c 0.19.3 on 2026-10-26.
 
 ## Remaining limits
 
