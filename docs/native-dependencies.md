@@ -1,7 +1,9 @@
 # Native dependencies
 
-The build hook downloads the following source archives and verifies their SHA-256 hashes.
-It compiles the sources locally. The repository contains no native implementation or native binaries.
+The build hook downloads pinned source archives, verifies their SHA-256 hashes, and compiles them for the target.
+Dart and Flutter bundle the result. No system-wide liblsl installation is required.
+The first build needs a target C++17 compiler and HTTPS access to `codeload.github.com`.
+Later builds reuse verified archives in the hook cache.
 
 | Component | Version or source | License |
 | --- | --- | --- |
@@ -12,13 +14,31 @@ It compiles the sources locally. The repository contains no native implementatio
 | Loguru | The pinned liblsl archive | Public domain, with a fallback permission grant |
 
 The [lsl package license](../packages/lsl/LICENSE) contains these license texts.
-It includes pugixml's 2006–2025 copyright notice from version 1.15.
 Preserve the package license in application notices when you distribute the bundled native library.
 Flutter's license collection can use this dependency-level `LICENSE` file.
 
 The retained C headers and generated declarations use liblsl's MIT license.
 The original liblsl notice remains in `packages/lsl/third_party/liblsl/LICENSE`.
 
-When you change a native version, update the archive hash, compiler sources, headers, and generated bindings together.
-Check the new archives for changes to their dependency licenses.
-Run the native tests and all platform builds before you accept that change.
+See [CONTRIBUTING.md](../CONTRIBUTING.md#native-changes) before a native version change.
+
+## Offline builds
+
+Place these archives in a local directory:
+
+- `liblsl-1.17.7.tar.gz`
+- `pugixml-1.15.tar.gz`
+
+Set this configuration in the consuming application's `pubspec.yaml`:
+
+```yaml
+hooks:
+  user_defines:
+    lsl:
+      source_archives: /path/to/verified-archives/
+```
+
+The hook verifies the same hashes and fails if an archive is absent or corrupt.
+It does not fetch replacement archives in offline mode.
+The SDK, compiler, and Dart dependencies must also be available locally.
+This option controls native source downloads; use the SDK's offline options for Pub dependencies.

@@ -1,106 +1,40 @@
 # Verification
 
-Verification date: 2026-10-26.
-Local host: macOS arm64, Flutter 3.47.5, Dart 3.13.4, Xcode 27.1.
+Use the [CI workflow](https://github.com/prefanatic/lsl/actions/workflows/ci.yaml) to check the result for a specific commit.
+The workflow covers native tests, coverage, Flutter tests, desktop and mobile builds, bundled CLI execution, bindings, and API links.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for commands and execution limits.
 
-## Automated checks
+## Recorded results
 
-The [CI workflow](https://github.com/prefanatic/lsl/actions/workflows/ci.yaml) records results for each commit.
-The [hosted baseline run](https://github.com/prefanatic/lsl/actions/runs/40012923831) passed all five jobs.
-It verified native tests, coverage, Flutter tests, desktop builds, bundled CLI execution, mobile builds, and binding generation.
-Check the latest commit's result before a release.
-API documentation checks now reject broken links and unresolved references.
+As of 2026-10-26, the latest local checks used macOS arm64, Flutter 3.47.5, Dart 3.13.4, and Xcode 27.1.
 
-| Target | Runtime tests | Build verification |
+| Target | Runtime checks | Build checks |
 | --- | --- | --- |
-| Linux x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
-| macOS arm64 | Native tests, Flutter tests, bundled AOT CLI | Universal arm64/x64 release example |
-| Windows x64 | Native tests, Flutter tests, bundled AOT CLI | Release Flutter example |
-| Android arm, arm64, x64 | Local int64 and UTF-8 loopback on an arm64 SDK 36 emulator | Release APK |
-| iOS arm64 simulator | Local int64 and UTF-8 loopback on iOS 27 | Simulator example |
-| iOS arm64 device | Physical-device network tests remain pending | Unsigned release example |
+| Linux x64 | Native tests, Flutter tests, bundled CLI | Release example |
+| macOS arm64 | Native tests, Flutter tests, bundled CLI | Universal arm64/x64 release example |
+| Windows x64 | Native tests, Flutter tests, bundled CLI | Release example |
+| Android arm64 emulator, SDK 36 | Local discovery, int64 and UTF-8 worker transport | Release APK for armv7, arm64, and x64 |
+| iOS arm64 simulator | Local discovery, int64 and UTF-8 worker transport on iOS 26.5 and 27 | Simulator example |
+| iOS arm64 device | Pending physical-device tests | Unsigned release example |
 
-## Local review on 2026-10-23
+The [hosted build run](https://github.com/prefanatic/lsl/actions/runs/40018108955) passed desktop checks and mobile builds on 2026-10-23.
+Its iOS transport command stalled after Xcode completed. The exact cause remains unconfirmed.
+Fresh local simulators passed on 2026-10-26; the workflow now has explicit deadlines and fresh simulator setup.
+A hosted runtime check of that setup remains pending.
 
-- Strict Dart analysis and format validation passed.
-- The review passed 39 native tests and five tool tests. The native suites used the Flutter runner with `--no-pub`.
-- Handwritten library coverage reached 95.6% (521 of 545 lines) through the Flutter runner.
-- The Flutter package test and example widget test passed.
-- Both mobile transport tests passed on the iOS 27 simulator and Android SDK 36 arm64 emulator.
-- Both API documentation builds passed with zero warnings and zero errors.
-- External Dart and Flutter consumers resolved path dependencies outside the workspace and loaded liblsl.
-- The external Dart consumer received a marker through a worker inlet.
-- Both external consumers used cached Pub dependencies and the offline source-archive override.
-- The macOS example launched and completed a hot reload. Automatic foreground activation failed.
-- The Git whitespace check passed.
+The local review passed 43 native tests, eight tool tests, Flutter tests, strict analysis, and API documentation checks.
+Handwritten library coverage reached 95.4% (519 of 544 lines), above the 90% gate.
+Tests cover all seven channel formats, chunks, timestamps, ownership, discovery, clock correction, errors, recovery, cancellation, and teardown.
+Source archive tests check integrity, offline use, cache reuse, HTTP failures, and unsafe paths.
+External Dart and Flutter consumers also loaded the native asset outside the workspace on 2026-10-23.
 
-Tests cover all seven formats, numeric chunks, timestamp rules, metadata ownership, discovery, and clock correction.
-They cover native timeout and stream-loss errors, error order, pause/resume, cancellation, and repeated destruction.
-They also cover synchronous close/reopen, source recovery, and cancellation during recovery.
-Validation tests reject invalid dimensions, native options, text, XML rates, and search filters.
-Archive tests cover hashes, offline sources, cache reuse, HTTP failures, and unsafe paths.
-Coverage-tool tests cover relative paths, Windows paths, missing files, unrelated files, and threshold failures.
+## Remaining limits
 
-The coverage gate requires 90% line coverage for handwritten library code.
-It excludes generated C bindings and export-only libraries. It rejects missing source files.
+- Physical Android and iOS tests must verify permissions and discovery between separate devices on the intended networks.
+- Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
+- Android SDK 37 permission behavior requires a matching device and an application that targets SDK 37.
+- Linux arm64, Windows arm64, and iOS x64 simulator targets lack build or runtime verification.
+- The universal macOS build compiles x64 native code; CI executes only arm64.
 
-## Remaining scope
-
-Physical Android and iOS tests must verify permissions, Wi-Fi discovery, and sample transfer on the intended networks.
-The mobile smoke tests verify discovery and transport within one simulated device.
-They do not verify communication between separate physical devices.
-Physical iOS tests require Apple's multicast entitlement and a matching signing profile.
-Android SDK 37 permission behavior requires a matching device or emulator and a consuming application that targets SDK 37.
-Linux arm64, Windows arm64, and iOS x64 simulator targets lack build or runtime verification.
-CI executes macOS arm64. The universal macOS build also compiles the x64 library.
-No live health backend or wearable hardware participates in these checks.
-
-The native code can emit compiler warnings and teardown messages during transport tests.
-Those messages do not imply a passing test; use the runner's exit status and assertions.
-The supported AOT path is `dart build cli`, which bundles the native asset.
-A direct `dart test --compiler exe` run on this SDK did not supply a native asset map.
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for reproducible commands.
-
-## Hosted simulator result and execution limits
-
-On 2026-10-23, [run 40018108955](https://github.com/prefanatic/lsl/actions/runs/40018108955) passed the desktop checks, binding generation, API documentation, and mobile builds.
-The hosted simulator transport command stalled after Xcode completed, before the first test result.
-The job had no explicit timeout and reached GitHub's six-hour default.
-The mobile runtime results above came from local simulators. They do not establish a hosted runtime pass.
-
-On 2026-10-24, the workflow received explicit job and step limits and cancellation of superseded runs.
-Simulator boot and test execution now have separate deadlines. The test command also emits verbose logs.
-Three regression tests enforce job limits, step limits, concurrency, and the simulator deadlines.
-Local policy tests and actionlint validate this change. A new hosted run was skipped to preserve Actions minutes.
-
-## Local hang check and cleanup on 2026-10-26
-
-The hosted hang did not recur in two fresh local simulators.
-The unchanged code passed both transport tests on iOS 26.5 in 56 seconds.
-The revised code passed both transport tests on a fresh iOS 27 simulator in 80 seconds, including boot and cleanup.
-Both runs had external deadlines. Both temporary simulators were deleted after the checks.
-The local Xcode installation has no Simulator application, so both checks used headless execution.
-These results do not identify the cause of the previous hosted hang.
-
-The workflow now creates a fresh simulator with the newest compatible installed runtime.
-It opens the Simulator application when available and waits for boot completion before the transport command.
-It deletes the temporary device after the check. Explicit job and step deadlines remain in force.
-The transport command builds the simulator app once. The Linux desktop job also builds the Android example.
-The iOS job has a 15-minute limit. The manual `ios_only` input can restrict a hosted check to this job.
-
-The cleanup defers native inlet creation until an operation needs the handle.
-Worker reception reuses native buffers and shares the synchronous sample conversion code.
-Integer range checks select their limits once per buffer write.
-Each native source version now has one constant for its archive URL, directory name, and build identification.
-
-- All 43 native tests passed, including signed integer limits and string reception across idle waits.
-- All eight tool tests passed.
-- Handwritten library coverage reached 95.4% (519 of 544 lines).
-- The Flutter package test and example widget test passed.
-- Strict Dart analysis, format validation, actionlint, and the Git whitespace check passed.
-- Both API documentation builds passed with zero warnings and zero errors.
-
-The cleanup did not receive new hosted platform results. The push skips CI to preserve Actions minutes.
-Linux, Windows, and Android were not rerun locally for this cleanup.
-The repository remains private, and package publication remains disabled.
+Use `dart build cli` for a bundled AOT executable.
+A direct `dart test --compiler exe` run on the current SDK did not supply a native asset map.

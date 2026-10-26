@@ -1,19 +1,25 @@
 # lsl_flutter
 
-Lab Streaming Layer for Flutter through Dart build hooks.
-Import `package:lsl_flutter/lsl_flutter.dart` to use the `lsl` Dart API.
-The transitive `lsl` build hook builds and bundles the native library.
-The package needs no plugin registration, method channel, CocoaPods podspec, or native binary copy.
+Lab Streaming Layer for Flutter: discovery, numeric samples, UTF-8 markers, metadata, and clock correction.
+This package exports the `lsl` Dart API and bundles liblsl through its build hook.
 
-Use Flutter 3.47 or later and Dart 3.13 or later.
-The package supports Android, iOS, Linux, macOS, and Windows. It does not support the web.
+## Setup
 
-The application must configure network permissions.
-Android Wi-Fi discovery can require a multicast lock.
-iOS multicast requires Apple's multicast entitlement and a matching signing profile.
-Sandboxed macOS applications need client and server network entitlements.
-See [platform configuration](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md) for complete instructions.
+Use Flutter 3.47 or later.
+Follow the [dependency instructions](https://github.com/prefanatic/lsl#add-a-dependency), then import:
 
-The [example](https://github.com/prefanatic/lsl/tree/main/packages/lsl_flutter/example) publishes string markers and includes the relevant application configuration.
-Run `flutter run -d macos` from the example directory.
-See the [lsl README](https://github.com/prefanatic/lsl/tree/main/packages/lsl) for numeric samples, discovery, asynchronous reception, and resource cleanup.
+```dart
+import 'package:lsl_flutter/lsl_flutter.dart';
+```
+
+Configure the application's [network permissions](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md) before LSL use.
+Android, iOS, Linux, macOS, and Windows are supported. Web is not supported.
+
+See the [Dart guide](https://github.com/prefanatic/lsl/tree/main/packages/lsl) for send and receive examples.
+Use worker streams for reception on the UI isolate; synchronous native waits can block the UI.
+Destroy each owned `StreamInfo` and `Outlet`, and await `Inlet.destroy()` after use.
+
+## Example
+
+The [example application](https://github.com/prefanatic/lsl/tree/main/packages/lsl_flutter/example) publishes string markers and includes platform configuration.
+Run `flutter run -d macos` from its directory, or select another supported device.

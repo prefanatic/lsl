@@ -4,11 +4,10 @@ Lab Streaming Layer for Dart with automatic native builds.
 This package provides discovery, metadata, numeric streams, UTF-8 markers, and clock correction.
 It also exposes the complete LSL C API through `package:lsl/native.dart`.
 
-Use Dart 3.13 or later. Flutter consumers need Flutter 3.47 or later.
-The build hook fetches pinned source archives and verifies their SHA-256 hashes.
-It uses `native_toolchain_c` to build liblsl 1.17.7 for the target platform.
-The package supports Android, iOS, Linux, macOS, and Windows.
-It does not support the web.
+Use Dart 3.13 or later. Flutter applications need Flutter 3.47 or later.
+Follow the [dependency instructions](https://github.com/prefanatic/lsl#add-a-dependency) and [platform setup](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md) first.
+The build hook compiles and bundles liblsl automatically for Android, iOS, Linux, macOS, and Windows.
+Web is not supported.
 
 ## Send samples
 
@@ -36,24 +35,16 @@ Future<void> main() async {
 ```
 
 Each sample must contain exactly `channelCount` values.
-The inlet derives `channelCount` from its stream description.
-Sample methods accept a named `timestamp` parameter.
-A numeric chunk contains a positive multiple of `channelCount` values in sample-major order.
-For example, `outlet.pushChunk([1, 2, 3, 4])` queues two samples for a two-channel outlet.
-An explicit chunk timestamp identifies its last sample.
 Integer formats require integers within the native range. The API preserves int64 precision.
-For a one-off sample, call `waitForConsumers` before the send and check its result.
-A send without a connected consumer does not guarantee delivery.
-Keep the outlet alive while it publishes. A push queues data and does not acknowledge delivery.
-LSL uses a monotonic local clock. Its timestamps are not UTC or Unix timestamps.
-Zero selects the local clock. `-1` selects LSL's deduced timestamp from the preceding sample and nominal rate.
-Other finite timestamps pass through unchanged, including negative values.
-For regular streams, a chunk assigns earlier timestamps from its nominal rate.
-For irregular streams, every sample in a chunk receives the supplied timestamp.
+A push queues data; it does not confirm receipt.
+Keep the outlet alive while it publishes.
+For a single send, wait for a consumer and check the result before the push.
 
 ## Receive samples
 
 ```dart
+import 'dart:io';
+
 import 'package:lsl/lsl.dart';
 
 Future<void> main() async {
@@ -63,7 +54,7 @@ Future<void> main() async {
   info.destroy();
   try {
     await for (final sample in inlet.open().take(10)) {
-      // Use sample.samples and sample.timestamp here.
+      stdout.writeln('${sample.timestamp}: ${sample.samples}');
     }
   } finally {
     await inlet.destroy();
@@ -71,35 +62,46 @@ Future<void> main() async {
 }
 ```
 
-Discovery uses a worker isolate. Its results retain native connection details.
-`resolveStreams` also supports a property/value filter or an XPath predicate.
-An unfiltered search waits for `timeout` seconds. A filtered search can return after `minimum` matches arrive.
-`capacity` limits the number of results. A timeout can return fewer matches, including an empty list.
-The caller owns every returned `StreamInfo`.
-Resolver results contain short metadata. Use `Inlet.fullInfo` for the full remote `desc` element.
-Use a stable, unique `sourceId` for a source that must recover after a restart.
-`recover: true` permits native reconnection. An empty source ID prevents that recovery.
-`Inlet.open` creates a separate worker inlet and uses bounded native waits.
-Its timeout limits the initial connection. The single-subscription stream can then wait indefinitely for samples.
-The stream emits a native failure as an error, then closes.
-Subscription cancellation waits for worker cleanup.
-Pause stops pulls from the native queue. The configured native buffer limits retained samples.
-After cancellation, a new subscription uses a new native connection.
-A worker can queue samples while the main isolate processes them.
-For strict application-level flow control, use bounded synchronous pulls in your own worker isolate.
+`resolveByProperty` searches by stream type unless you supply another property.
+`resolveStreams` also accepts a property/value filter or an XPath predicate.
+An unfiltered search waits for `timeout` seconds; a filtered search can return after `minimum` matches arrive.
+`capacity` limits the result count. A search can return fewer matches, including none.
+Use `fullInfo` for the remote XML metadata under `desc`.
 
-`pullSample`, `openStream`, `fullInfo`, and `timeCorrection` are synchronous native calls.
-A nonzero timeout can block the calling isolate.
-A pull returns null when no sample arrives. Native failures throw `LslException` subtypes.
-Call `setPostprocessing` with LSL processing flags before stream reception.
-Use `timeCorrection` with raw timestamps when the application needs manual clock correction.
-Add the correction to the source timestamp to map it into the receiver's local LSL clock domain.
-Automatic clock synchronization already applies that correction. Do not apply it a second time.
+`open` and `openStrings` receive samples in a worker isolate.
+Their timeout limits the initial connection; the stream can then wait indefinitely for samples.
+Each stream accepts one subscription. Samples contain immutable lists.
+A native failure emits an `LslException` subtype, then closes the stream.
+Use a stable, unique `sourceId` and `recover: true` to permit reconnection after a source restart.
+
+Cancel the subscription before use of synchronous inlet methods.
+Cancellation waits for worker cleanup. A later call to `open` or `openStrings` creates a new connection.
+Pause stops pulls from the native queue, whose size depends on `maxBuffered`.
+The Dart stream can queue samples while the receiving isolate processes them.
+For strict flow control, use bounded synchronous pulls in your own worker isolate.
+
+## Synchronous reception
+
+`openStream`, `pullSample`, `pullStrings`, `fullInfo`, and `timeCorrection` can block the calling isolate.
+Each timeout uses seconds. A pull returns null when no sample arrives; native failures throw `LslException` subtypes.
+Call `closeStream` to disconnect and discard queued samples.
+Close a synchronous connection before a call to `open` or `openStrings`.
+
+## Timestamps
+
+LSL timestamps use a monotonic clock with no UTC epoch.
+Sample methods accept a named `timestamp` parameter:
+
+- `0` selects the local LSL clock, also available through `localClock()`.
+- `-1` deduces the timestamp from the preceding sample and nominal rate.
+- Other finite values pass through unchanged, including negative values.
+
+Add `inlet.timeCorrection()` to a raw source timestamp to map it into the receiver's local LSL clock domain.
+Alternatively, configure automatic processing before reception:
 
 ```dart
 import 'package:lsl/native.dart' show lsl_processing_options_t;
 
-// Configure the inlet before reception.
 inlet.setPostprocessing(
   lsl_processing_options_t.proc_clocksync |
       lsl_processing_options_t.proc_dejitter,
@@ -107,13 +109,15 @@ inlet.setPostprocessing(
 ```
 
 Processing replaces the original timestamps. `setPostprocessing(0)` disables processing.
-`closeStream` drops queued samples and permits a later synchronous or worker connection.
-The wrapper releases the native handle to avoid liblsl 1.17.7's
-[close/reopen defect](https://github.com/sccn/liblsl/issues/180).
-A later synchronous operation creates a new native handle when necessary.
-Worker reception creates its native inlet in the worker isolate.
+Do not apply manual clock correction to timestamps that already have automatic clock synchronization.
 
-## Buffer configuration
+## Numeric chunks and buffers
+
+`pushChunk` accepts a positive multiple of `channelCount` values in sample-major order.
+For example, `outlet.pushChunk([1, 2, 3, 4])` sends two samples through a two-channel outlet.
+The chunk timestamp identifies the last sample.
+For regular streams, LSL derives earlier timestamps from the nominal rate.
+For irregular streams, all samples receive the supplied timestamp.
 
 The `maxBuffered` constructor parameter uses seconds when the nominal rate is positive.
 For irregular streams, each unit represents 100 samples. The default is 360 units.
@@ -130,16 +134,20 @@ Both methods accept a named `timestamp` parameter.
 Receive strings with `Inlet.pullStrings` or `Inlet.openStrings`.
 The API rejects embedded NUL characters. Use the raw buffer API for arbitrary binary data.
 
-## Native ownership
+## Resource cleanup
+
+Destroy every owned `StreamInfo`, including resolver results and `Outlet.streamInfo` results.
+Destroy each `Outlet` and await `Inlet.destroy()` after use, as the examples show.
+Native finalizers provide fallback cleanup; explicit destruction gives predictable resource lifetime.
 
 `StreamInfo.fromPointer` takes ownership of its argument.
 `StreamInfo.copy` creates an independent owned description.
 `StreamInfo.fromXml` requires XML from a published stream with a nonempty UID.
 Use `copy` when a description must retain its native connection details.
-liblsl 1.17.7 can omit resolved addresses from exported XML.
+Exported XML can omit resolved addresses.
 The raw C API requires explicit pointer, buffer, and string cleanup.
 
 The package's [LICENSE](https://github.com/prefanatic/lsl/blob/main/packages/lsl/LICENSE) includes the native dependency notices.
 Preserve those notices when you distribute an application with liblsl.
-See the [repository README](https://github.com/prefanatic/lsl) for offline builds and development commands.
-See [platform configuration](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md) for network permissions and support limits.
+See [native dependencies](https://github.com/prefanatic/lsl/blob/main/docs/native-dependencies.md) for offline builds and licenses.
+See [CONTRIBUTING.md](https://github.com/prefanatic/lsl/blob/main/CONTRIBUTING.md) for development checks.

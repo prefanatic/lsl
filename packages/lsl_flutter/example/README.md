@@ -1,10 +1,16 @@
 # LSL example
 
-Run `flutter run -d macos` from this directory.
 The example publishes UTF-8 markers through an LSL outlet.
-See the package README for network permissions on each platform.
+Run `flutter run -d macos` from this directory, or select another supported device.
+Connect an LSL inlet, then press **Send marker**.
+The counter records sends; a send does not confirm that a receiver received the marker.
+See [platform setup](../../../docs/platforms.md) for network permissions, multicast access, and iOS signing.
 
-Run `flutter test integration_test/transport_test.dart -d <device-id>` for the transport smoke tests.
-These tests verify local discovery, int64 precision, UTF-8 samples, and worker cleanup on the selected target.
-Use an iOS simulator or Android emulator for a local run.
-Physical-device tests must also verify network permission prompts and Wi-Fi behavior.
+Run the transport tests on an iOS simulator or Android emulator:
+
+```sh
+flutter test integration_test/transport_test.dart -d <device-id>
+```
+
+These tests check discovery, int64 precision, UTF-8 samples, and worker cleanup within one device.
+Test permissions and Wi-Fi discovery between physical devices before a mobile release.
