@@ -34,6 +34,7 @@ Future<void> main() async {
 }
 ```
 
+Use `StreamInfo.setChannelMetadata` to set a label and unit for each channel before outlet creation.
 Each sample must contain exactly `channelCount` values.
 Integer formats require integers within the native range. The API preserves int64 precision.
 A push queues data; it does not confirm receipt.

@@ -142,6 +142,49 @@ class StreamInfo implements Finalizable {
     });
   }
 
+  /// Replaces the standard channel labels and units in sample order.
+  /// Supply exactly [channelCount] entries before creation of an outlet.
+  void setChannelMetadata(List<({String label, String unit})> channels) {
+    if (channels.length != channelCount) {
+      throw ArgumentError('Expected $channelCount channel descriptions.');
+    }
+    for (final channel in channels) {
+      checkText(channel.label, 'label');
+      checkText(channel.unit, 'unit');
+      if (channel.label.isEmpty) {
+        throw ArgumentError('Channel labels must not be empty.');
+      }
+    }
+    using((arena) {
+      final desc = native.lsl_get_desc(pointer);
+      final name = 'channels'.toNativeUtf8(allocator: arena).cast<Char>();
+      native.lsl_remove_child_n(desc, name);
+      final parent = requirePointer(
+        native.lsl_append_child(desc, name),
+        'set channels',
+      );
+      for (final channel in channels) {
+        final child = requirePointer(
+          native.lsl_append_child(
+            parent,
+            'channel'.toNativeUtf8(allocator: arena).cast(),
+          ),
+          'set channel',
+        );
+        for (final (key, value) in [
+          ('label', channel.label),
+          ('unit', channel.unit),
+        ]) {
+          native.lsl_append_child_value(
+            child,
+            key.toNativeUtf8(allocator: arena).cast(),
+            value.toNativeUtf8(allocator: arena).cast(),
+          );
+        }
+      }
+    });
+  }
+
   /// Creates a separate owned copy, including native connection details.
   StreamInfo copy() =>
       StreamInfo.fromPointer(native.lsl_copy_streaminfo(pointer));

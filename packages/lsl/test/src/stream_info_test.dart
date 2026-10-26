@@ -4,6 +4,48 @@ import 'package:lsl/lsl.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test(
+    'channel metadata preserves order, escapes text, and replaces prior values',
+    () {
+      final info = StreamInfo(name: 'channels', type: 'test', channelCount: 2);
+      addTearDown(info.destroy);
+      info.setChannelMetadata([
+        (label: 'old', unit: ''),
+        (label: 'other', unit: ''),
+      ]);
+      info.setChannelMetadata([
+        (label: 'PPG & IR', unit: 'counts'),
+        (label: 'time', unit: 'ms'),
+      ]);
+      expect(info.xml, contains('<label>PPG &amp; IR</label>'));
+      expect(info.xml, contains('<unit>counts</unit>'));
+      expect(info.xml, isNot(contains('<label>old</label>')));
+      expect(
+        info.xml.indexOf('<label>PPG'),
+        lessThan(info.xml.indexOf('<label>time')),
+      );
+      final before = info.xml;
+      expect(() => info.setChannelMetadata([]), throwsArgumentError);
+      expect(
+        () => info.setChannelMetadata([
+          (label: '', unit: ''),
+          (label: 'time', unit: ''),
+        ]),
+        throwsArgumentError,
+      );
+      expect(
+        () => info.setChannelMetadata([
+          (label: 'a', unit: 'a\u0000b'),
+          (label: 'time', unit: ''),
+        ]),
+        throwsArgumentError,
+      );
+      expect(info.xml, before);
+      info.destroy();
+      expect(() => info.setChannelMetadata([]), throwsStateError);
+    },
+  );
+
   test('build hook loads the pinned native library', () {
     expect(libraryVersion, '1.17');
     expect(protocolVersion, matches(r'^\d+\.\d+$'));

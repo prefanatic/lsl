@@ -22,8 +22,8 @@ The [2026-10-26 CI attempt](https://github.com/prefanatic/lsl/actions/runs/40343
 Hosted iOS transport remains unverified after a previous startup hang.
 Fresh local simulators passed on 2026-10-26; the workflow now has explicit deadlines and fresh simulator setup.
 
-The local review passed 43 native tests, eight tool tests, Flutter tests, strict analysis, and API documentation checks.
-Handwritten library coverage reached 95.4% (519 of 544 lines), above the 90% gate.
+The local review passed 44 native tests, eight tool tests, Flutter tests, strict analysis, and API documentation checks.
+Handwritten library coverage reached 95.6% (542 of 567 lines), above the 90% gate.
 Tests cover all seven channel formats, chunks, timestamps, ownership, discovery, clock correction, errors, recovery, cancellation, and teardown.
 Source archive tests check integrity, offline use, cache reuse, HTTP failures, and unsafe paths.
 External Dart and Flutter consumers also loaded the native asset outside the workspace on 2026-10-23.
