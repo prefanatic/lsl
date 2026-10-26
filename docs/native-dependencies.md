@@ -26,8 +26,8 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md#native-changes) before a native version
 
 Place these archives in a local directory:
 
-- `liblsl-1.17.7.tar.gz`
-- `pugixml-1.15.tar.gz`
+- [liblsl-1.17.7.tar.gz](https://codeload.github.com/sccn/liblsl/tar.gz/refs/tags/v1.17.7)
+- [pugixml-1.15.tar.gz](https://codeload.github.com/zeux/pugixml/tar.gz/refs/tags/v1.15)
 
 Set this configuration in the consuming application's `pubspec.yaml`:
 
