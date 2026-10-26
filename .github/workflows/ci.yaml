@@ -76,6 +76,11 @@ jobs:
         run: flutter build apk --release
         timeout-minutes: 12
         working-directory: packages/lsl_flutter/example
+      - name: Test Android multicast ownership
+        if: matrix.target == 'linux'
+        run: ./gradlew :lsl_flutter:testDebugUnitTest --console=plain
+        timeout-minutes: 3
+        working-directory: packages/lsl_flutter/example/android
       - run: dart build cli --target example/main.dart --output build/cli
         timeout-minutes: 4
         working-directory: packages/lsl

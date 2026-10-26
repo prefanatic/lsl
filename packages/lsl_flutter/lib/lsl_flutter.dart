@@ -4,3 +4,5 @@
 library;
 
 export 'package:lsl/lsl.dart';
+
+export 'src/multicast_lock.dart';

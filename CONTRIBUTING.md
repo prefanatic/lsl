@@ -45,6 +45,13 @@ Run this command from both `packages/lsl` and `packages/lsl_flutter`:
 dart doc --validate-links --output build/api
 ```
 
+For Android multicast ownership tests, build the example APK first.
+Run this command from `packages/lsl_flutter/example/android`:
+
+```sh
+./gradlew :lsl_flutter:testDebugUnitTest
+```
+
 For a mobile transport check, run from the example directory:
 
 ```sh

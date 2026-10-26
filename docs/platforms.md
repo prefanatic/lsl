@@ -1,6 +1,7 @@
 # Platform configuration
 
 The build hook compiles and bundles liblsl. The application controls permissions and resource lifetime.
+`lsl_flutter` supplies Android multicast locks and their normal manifest permissions.
 
 ## Build targets
 
@@ -32,18 +33,23 @@ LSL does not encrypt samples or authenticate peers. Use a network with appropria
 
 ## Android
 
-Add these permissions to the application's main manifest:
+Flutter applications acquire `LslMulticastLock` before LSL work and release it when that work stops.
+The `lsl_flutter` plugin supplies Internet, Wi-Fi state, and multicast manifest permissions.
+Each caller owns one lock. The plugin holds native access until the last caller releases its lock.
+The plugin also releases native access when the Flutter engine closes.
+Other platforms need no native multicast lock, so this API has no effect there.
 
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+```dart
+final multicast = await LslMulticastLock.acquire();
+try {
+  // Create and use LSL resources here, then destroy them.
+} finally {
+  await multicast.release();
+}
 ```
 
-Acquire a `WifiManager.MulticastLock` while the application needs Wi-Fi multicast reception.
-Release the lock when that work stops.
-The example activity shows this lifecycle for a foreground application.
+The package does not request runtime permissions.
+Pure Dart Android hosts must declare the normal permissions and manage `WifiManager.MulticastLock` themselves.
 The application must provide any required Android background service.
 See [Android's MulticastLock documentation](https://developer.android.com/reference/android/net/wifi/WifiManager.MulticastLock).
 

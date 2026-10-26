@@ -6,7 +6,7 @@ The packages also provide metadata, clock correction, and the complete LSL C API
 | Package | Use |
 | --- | --- |
 | [`lsl`](packages/lsl) | Dart API, FFI bindings, and the native build hook |
-| [`lsl_flutter`](packages/lsl_flutter) | Flutter entry point that exports the Dart API |
+| [`lsl_flutter`](packages/lsl_flutter) | Flutter API and scoped Android multicast locks |
 
 Use Dart 3.13 or later. Flutter applications need Flutter 3.47 or later.
 The packages support Android, iOS, Linux, macOS, and Windows. Web is not supported.

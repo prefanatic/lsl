@@ -29,6 +29,10 @@ Source archive tests check integrity, offline use, cache reuse, HTTP failures, a
 External Dart and Flutter consumers also loaded the native asset outside the workspace on 2026-10-23.
 A separate Dart consumer built and loaded liblsl with code_assets 1.2.1 and native_toolchain_c 0.19.3 on 2026-10-26.
 
+The Android multicast plugin passed four JVM tests with Robolectric on SDK 35.
+Eleven Flutter package tests cover scoped locks, retries, concurrent release, platform behavior, and native loading.
+The example tests cover marker export, acquisition failure, and disposal during acquisition.
+
 ## Remaining limits
 
 - Physical Android and iOS tests must verify permissions and discovery between separate devices on the intended networks.
