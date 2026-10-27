@@ -8,7 +8,12 @@ import 'package:lsl_flutter/lsl_flutter.dart';
 void main() => runApp(const LslExample());
 
 class LslExample extends StatefulWidget {
-  const LslExample({super.key});
+  const LslExample({
+    super.key,
+    this.acquireMulticastLock = LslMulticastLock.acquire,
+  });
+
+  final Future<LslMulticastLock> Function() acquireMulticastLock;
 
   @override
   State<LslExample> createState() => _LslExampleState();
@@ -29,7 +34,7 @@ class _LslExampleState extends State<LslExample> {
   Future<void> _start() async {
     LslMulticastLock? lock;
     try {
-      lock = await LslMulticastLock.acquire();
+      lock = await widget.acquireMulticastLock();
       if (!mounted) {
         await lock.release();
         return;

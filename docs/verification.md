@@ -30,7 +30,8 @@ External Dart and Flutter consumers also loaded the native asset outside the wor
 A separate Dart consumer built and loaded liblsl with code_assets 1.2.1 and native_toolchain_c 0.19.3 on 2026-10-26.
 
 The Android multicast plugin passed four JVM tests with Robolectric on SDK 35.
-Eleven Flutter package tests cover scoped locks, retries, concurrent release, platform behavior, and native loading.
+Thirteen Flutter package tests cover scoped locks, retries, concurrent release, platform behavior, and native loading.
+The 2026-10-27 check verifies that all six Flutter UI platform overrides preserve selection by the actual operating system.
 The example tests cover marker export, acquisition failure, and disposal during acquisition.
 
 ## Remaining limits

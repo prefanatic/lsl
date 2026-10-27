@@ -37,6 +37,7 @@ try {
 Each caller owns its lock. Other callers retain access until they release their locks.
 The Android plugin also releases all locks when its Flutter engine closes.
 On other platforms, the lock needs no native resource.
+Flutter UI platform overrides do not change native access.
 Apple usage descriptions, signed entitlements, and permission prompts remain application configuration.
 See [platform setup](https://github.com/prefanatic/lsl/blob/main/docs/platforms.md).
 

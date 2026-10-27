@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Cody Goldberg. See LICENSE for the license terms.
 
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
 /// Holds Android Wi-Fi multicast access until [release].
@@ -19,16 +21,8 @@ final class LslMulticastLock {
   /// Each caller owns its lock. The Android plugin holds multicast access
   /// until all callers release their locks, or the Flutter engine closes.
   /// Call this method from a Flutter isolate with a platform messenger.
-  static Future<LslMulticastLock> acquire() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return LslMulticastLock._(null);
-    }
-    final id = await _channel.invokeMethod<int>('acquire');
-    if (id == null) {
-      throw StateError('The multicast plugin returned no lock identifier.');
-    }
-    return LslMulticastLock._(id);
-  }
+  static Future<LslMulticastLock> acquire() =>
+      acquireMulticastLock(isAndroid: Platform.isAndroid);
 
   /// Releases this caller's lock. Repeated calls share the same result.
   ///
@@ -43,4 +37,16 @@ final class LslMulticastLock {
       rethrow;
     }
   }
+}
+
+// This boundary lets host tests exercise Android method calls without
+// treating Flutter's UI platform override as the native operating system.
+@visibleForTesting
+Future<LslMulticastLock> acquireMulticastLock({required bool isAndroid}) async {
+  if (!isAndroid) return LslMulticastLock._(null);
+  final id = await LslMulticastLock._channel.invokeMethod<int>('acquire');
+  if (id == null) {
+    throw StateError('The multicast plugin returned no lock identifier.');
+  }
+  return LslMulticastLock._(id);
 }

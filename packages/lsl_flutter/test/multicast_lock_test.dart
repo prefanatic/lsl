@@ -1,11 +1,13 @@
 // Copyright (c) 2026 Cody Goldberg. See LICENSE for the license terms.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lsl_flutter/lsl_flutter.dart';
+import 'package:lsl_flutter/src/multicast_lock.dart' show acquireMulticastLock;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +17,6 @@ void main() {
   late List<MethodCall> calls;
 
   setUp(() {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
     calls = [];
     messenger.setMockMethodCallHandler(channel, (call) async {
       calls.add(call);
@@ -28,7 +29,7 @@ void main() {
   });
 
   test('a lock releases its own native handle once', () async {
-    final lock = await LslMulticastLock.acquire();
+    final lock = await acquireMulticastLock(isAndroid: true);
     await lock.release();
     await lock.release();
     expect(calls.map((call) => call.method), ['acquire', 'release']);
@@ -43,7 +44,7 @@ void main() {
       await gate.future;
       return null;
     });
-    final lock = await LslMulticastLock.acquire();
+    final lock = await acquireMulticastLock(isAndroid: true);
     final first = lock.release();
     final second = lock.release();
     await Future<void>.delayed(Duration.zero);
@@ -62,7 +63,7 @@ void main() {
         if (fail) throw PlatformException(code: 'synthetic_failure');
         return null;
       });
-      final lock = await LslMulticastLock.acquire();
+      final lock = await acquireMulticastLock(isAndroid: true);
       await expectLater(lock.release(), throwsA(isA<PlatformException>()));
       fail = false;
       await lock.release();
@@ -76,7 +77,7 @@ void main() {
       throw PlatformException(code: 'multicast_unavailable');
     });
     await expectLater(
-      LslMulticastLock.acquire(),
+      acquireMulticastLock(isAndroid: true),
       throwsA(isA<PlatformException>()),
     );
     expect(calls.single.method, 'acquire');
@@ -84,18 +85,27 @@ void main() {
 
   test('a missing native handle fails immediately', () async {
     messenger.setMockMethodCallHandler(channel, (_) async => null);
-    await expectLater(LslMulticastLock.acquire(), throwsStateError);
+    await expectLater(acquireMulticastLock(isAndroid: true), throwsStateError);
   });
 
-  for (final platform in TargetPlatform.values.where(
-    (p) => p != TargetPlatform.android,
-  )) {
-    test('$platform needs no native multicast lock', () async {
-      debugDefaultTargetPlatformOverride = platform;
-      final lock = await LslMulticastLock.acquire();
-      await lock.release();
-      await lock.release();
-      expect(calls, isEmpty);
-    });
+  test('other operating systems need no native lock', () async {
+    final lock = await acquireMulticastLock(isAndroid: false);
+    await lock.release();
+    expect(calls, isEmpty);
+  });
+
+  for (final platform in TargetPlatform.values) {
+    test(
+      'the $platform UI override cannot change native lock selection',
+      () async {
+        debugDefaultTargetPlatformOverride = platform;
+        final lock = await LslMulticastLock.acquire();
+        await lock.release();
+        expect(
+          calls.map((call) => call.method),
+          Platform.isAndroid ? ['acquire', 'release'] : isEmpty,
+        );
+      },
+    );
   }
 }
